@@ -334,3 +334,67 @@ func UpdateGroup() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "Group name updated successfully"})
 	}
 }
+
+func RemoveGroupMember() gin.HandlerFunc {
+	return func(c *gin.Context){
+		var ctx,cancel = context.WithTimeout(context.Background(),10*time.Second)
+
+		defer cancel()
+
+		type group struct{
+			group_name string
+			email string
+		}
+
+		var g group
+
+		if err:=c.BindJSON(&g);err!=nil{
+			badRequestResponse := endpoints.BadRequestResponse{
+                Message: "Please provide fields properly",
+                Status:  "400",
+                Error:   err.Error(),
+            }
+            c.JSON(http.StatusBadRequest, badRequestResponse)
+            return
+		}
+
+		// first check the group name is exists or not and if so then find the user and delete the user from the group
+		// here user lies in the users array in db as users:[{email: "user@example.com}]
+		filter:= bson.M{"group_name":g.group_name}
+
+		count,err:=groupCollection.CountDocuments(ctx, filter)
+		if err!=nil{
+			internalServerResponse := endpoints.InternalServerResponse{
+                Message: "Failed to get count of the documents",
+                Status:  "500",
+                Error:   err.Error(),
+            }
+            c.JSON(http.StatusInternalServerError, internalServerResponse)
+            return
+		}
+		if count==0{
+			badRequestResponse:= endpoints.BadRequestResponse{
+				Message: "Group is not exists. Please try again with different group name",
+                Status:  "400",
+                Error:   "group_name_not_exists",
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+			return
+		}
+		update := bson.M{"$pull":bson.M{"users":bson.M{"email":g.email}}}
+		result:=groupCollection.FindOneAndUpdate(ctx, filter,update)
+		if result.Err()!=nil{
+			internalServerResponse := endpoints.InternalServerResponse{
+                Message: "Failed to delete the user from the group",
+                Status:  "500",
+                Error:   result.Err().Error(),
+            }
+            c.JSON(http.StatusInternalServerError, internalServerResponse)
+            return
+		}
+		var updatedGroup Group
+		result.Decode(&updatedGroup)
+
+		c.JSON(http.StatusOK,gin.H{"updatedGroup":updatedGroup})
+	}
+}
