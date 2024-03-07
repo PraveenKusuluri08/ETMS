@@ -3,15 +3,16 @@ package groups
 import (
 	"context"
 	"fmt"
+	"log"
+	"net/http"
+	"time"
+
 	"github.com/Praveenkusuluri08/bootstrap"
 	"github.com/Praveenkusuluri08/endpoints"
 	"github.com/Praveenkusuluri08/utils"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"log"
-	"net/http"
-	"time"
 )
 
 type GroupController struct {
@@ -133,4 +134,148 @@ func contains(slice []interface{}, value string) bool {
 		}
 	}
 	return false
+}
+
+func AcceptInvitation() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		email := c.Query("email")
+		groupName := c.Query("groupName")
+
+		fmt.Println(groupName, email)
+
+		// check for the group is exists or not and and also check for the user is already in the users array in db
+		filter := bson.M{"groupName": groupName}
+		count, err := groupCollection.CountDocuments(ctx, filter)
+		if err != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to get count of the documents",
+				Status:  "500",
+				Error:   err.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		if count == 0 {
+			statusBadRequest := endpoints.BadRequestResponse{
+				Message: "Group Name already exists. Please try again with different group name",
+				Status:  "400",
+				Error:   "group_name_exists",
+			}
+			c.JSON(http.StatusBadRequest, statusBadRequest)
+			return
+		}
+
+		//check for the user is already in the users array in db
+		var users []string
+		users = append(users, email)
+		userFilter := bson.M{
+			"group_name": groupName,
+			"users.email": bson.M{
+				"$in": users,
+			},
+		}
+		count, err = groupCollection.CountDocuments(ctx, userFilter)
+		if err != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to get count of the documents",
+				Status:  "500",
+				Error:   err.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		if count > 0 {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Message: "User already exists. Please try again with different user name",
+				Status:  "400",
+				Error:   "user_exists",
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+			return
+		}
+
+		// if the user is not exists then need to insert the user to the users array in db
+		update := bson.M{"$push": bson.M{"users": bson.M{"email": email}}}
+		updateInfo := groupCollection.FindOneAndUpdate(ctx, filter, update)
+
+		doc := bson.M{}
+		err1 := updateInfo.Decode(&doc)
+		if err1 != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to get count of the documents",
+				Status:  "500",
+				Error:   err1.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		c.JSON(http.StatusCreated, doc)
+	}
+}
+
+func DisplaUsers() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+		var group Group
+		defer cancel()
+		type D struct {
+			groupname string
+		}
+		var d D
+		//check if the group name is already exists or not and next find the users by using projection print only the users emails address
+		err := c.BindJSON(&d)
+		if err != nil {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Message: "Please provide fields properly",
+				Status:  "400",
+				Error:   err.Error(),
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+			return
+		}
+		filter := bson.M{"group_name": d.groupname}
+		count, err := groupCollection.CountDocuments(ctx, filter)
+		if err != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to get count of the documents",
+				Status:  "500",
+				Error:   err.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		if count == 0 {
+			statusBadRequest := endpoints.BadRequestResponse{
+				Message: "Group is not exists. Please try again with different group name",
+				Status:  "400",
+				Error:   "group_name_not_exists",
+			}
+			c.JSON(http.StatusBadRequest, statusBadRequest)
+			return
+		}
+
+		cursor, err := groupCollection.Find(ctx, filter)
+		if err != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to get count of the documents",
+				Status:  "500",
+				Error:   err.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+
+		if err := cursor.All(ctx, &group); err != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to get the documents",
+				Status:  "500",
+				Error:   err.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		c.JSON(http.StatusOK, group)
+	}
 }

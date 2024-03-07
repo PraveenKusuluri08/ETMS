@@ -10,4 +10,8 @@ func GroupRouter(router *gin.RouterGroup) {
 	router.POST("/creategroup", groups.CreateGroup())
 
 	router.POST("/invite", groups.InviteGroupMembers())
+
+	router.POST("/accept_invitation", groups.AcceptInvitation())
+
+	router.POST("/get_users", groups.DisplaUsers())
 }
