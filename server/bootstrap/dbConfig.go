@@ -16,9 +16,9 @@ func DBConnect() *mongo.Client {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
 	defer cancel()
-	fmt.Println(os.Getenv("MONGODB_URI"))
+	mongo_uri:=os.Getenv("MONGODB_URI")
 
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017/local"))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongo_uri))
 	if err != nil {
 		log.Fatal(err)
 	}
