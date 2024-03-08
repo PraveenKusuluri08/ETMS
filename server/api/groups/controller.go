@@ -166,18 +166,36 @@ func AcceptInvitation() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
-		var users[]map[string]string
-		users=append(users,map[string]string {"email":acceptInv.Email})
-		userFilter:= bson.M{
-			"group_name":acceptInv.GroupName,
-			"users.email":bson.M{
-				"$in":users,
+
+		//check if the user is exists in the invitation array
+		filterUserInv := bson.M{"invites": acceptInv.Email}
+
+		invcount, inverr := groupCollection.CountDocuments(ctx, filterUserInv)
+		if inverr != nil {
+			log.Fatal(err)
+		}
+		if invcount < 1 {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Message: "User is not invited. Please invite the user first",
+				Status:  "400",
+				Error:   "user_not_invited",
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+			return
+		}
+
+		var users []map[string]string
+		users = append(users, map[string]string{"email": acceptInv.Email})
+		userFilter := bson.M{
+			"group_name": acceptInv.GroupName,
+			"users.email": bson.M{
+				"$in": users,
 			},
 		}
 
-		count,err= groupCollection.CountDocuments(ctx,userFilter)
+		count, err = groupCollection.CountDocuments(ctx, userFilter)
 
-		if err!=nil{
+		if err != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
 				Message: "Failed to get count of the documents",
 				Status:  "500",
@@ -196,12 +214,25 @@ func AcceptInvitation() gin.HandlerFunc {
 			return
 		}
 
-		update := bson.M{"$push": bson.M{"users": bson.M{"$email": acceptInv.Email}}}
+		update := bson.M{"$push": bson.M{"users": bson.M{"email": acceptInv.Email}}}
 		result, err := groupCollection.UpdateMany(ctx, filter, update)
 		if err != nil {
 			log.Fatal(err)
 		}
 		fmt.Printf("Matched %v documents and modified %v documents\n", result.MatchedCount, result.ModifiedCount)
+
+		//aftter the user data is updated then pop the user invitation from the invitation array
+
+		updateInvitationArray := bson.M{"$pull": bson.M{"invites": acceptInv.Email}}
+		updateRes := groupCollection.FindOneAndUpdate(ctx, bson.M{"group_name": acceptInv.GroupName}, updateInvitationArray)
+
+		if updateRes.Err() != nil {
+			log.Fatal(updateRes.Err())
+		}
+		fmt.Println(updateRes)
+
+		//after this in the users collection need to add the group name into the groups array.
+
 		c.JSON(http.StatusOK, "Invitation Accepted")
 	}
 }
@@ -211,10 +242,10 @@ func DisplaUsers() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 		var group Group
 		defer cancel()
-		groupname:=c.Query("GroupName")
+		groupname := c.Query("GroupName")
 		fmt.Println(groupname)
 		//check if the group name is already exists or not and next find the users by using projection print only the users emails address
-		
+
 		filter := bson.M{"group_name": groupname}
 		count, err := groupCollection.CountDocuments(ctx, filter)
 		if err != nil {
