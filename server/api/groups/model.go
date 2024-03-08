@@ -13,3 +13,8 @@ type Invitation struct {
 	GroupName string   `json:"groupname"`
 	Users     []string `json:"users"`
 }
+
+type AcceptInvitationStruct struct {
+	GroupName string `json:"groupname"`
+	Email     string `json:"email"`
+}

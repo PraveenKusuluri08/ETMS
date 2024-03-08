@@ -90,7 +90,7 @@ func InviteGroupMembers() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
-		fmt.Println(invitation.Users)
+		fmt.Println(invitation)
 
 		// TODO:first check the user is already exists in the users array in db
 		//TODO: if so then send the error message like user already exists
@@ -141,101 +141,38 @@ func AcceptInvitation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		email := c.Query("email")
-		groupName := c.Query("groupName")
 
-		fmt.Println(groupName, email)
-
-		// check for the group is exists or not and and also check for the user is already in the users array in db
-		filter := bson.M{"groupName": groupName}
-		count, err := groupCollection.CountDocuments(ctx, filter)
-		if err != nil {
-			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get count of the documents",
-				Status:  "500",
-				Error:   err.Error(),
-			}
-			c.JSON(http.StatusInternalServerError, internalServerResponse)
-			return
-		}
-		if count == 0 {
-			statusBadRequest := endpoints.BadRequestResponse{
-				Message: "Group Name already exists. Please try again with different group name",
-				Status:  "400",
-				Error:   "group_name_exists",
-			}
-			c.JSON(http.StatusBadRequest, statusBadRequest)
-			return
-		}
-
-		//check for the user is already in the users array in db
-		var users []string
-		users = append(users, email)
-		userFilter := bson.M{
-			"group_name": groupName,
-			"users.email": bson.M{
-				"$in": users,
-			},
-		}
-		count, err = groupCollection.CountDocuments(ctx, userFilter)
-		if err != nil {
-			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get count of the documents",
-				Status:  "500",
-				Error:   err.Error(),
-			}
-			c.JSON(http.StatusInternalServerError, internalServerResponse)
-			return
-		}
-		if count > 0 {
+		var acceptInv AcceptInvitationStruct
+		if err := c.BindJSON(&acceptInv); err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "User already exists. Please try again with different user name",
+				Message: "Please provide fields properly",
 				Status:  "400",
-				Error:   "user_exists",
+				Error:   err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
-
-		// if the user is not exists then need to insert the user to the users array in db
-		update := bson.M{"$push": bson.M{"users": bson.M{"email": email}}}
-
-		updateInfo := groupCollection.FindOneAndUpdate(ctx, filter, update)
-
-		//find the user in the users array and update the users collection in that groups array
-
-		filterUser := bson.M{"email": email}
-		updateUsersCol := bson.M{"groups": bson.M{"$in": bson.M{"group_name": groupName}}}
-
-		userUpdateInfo := usersCollection.FindOneAndUpdate(ctx, filterUser, updateUsersCol)
-
-		if userUpdateInfo.Err() != nil {
-			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to update the group in users collection",
-				Status:  "500",
-				Error:   userUpdateInfo.Err().Error(),
+		filter := bson.M{"group_name": acceptInv.GroupName}
+		count, err := groupCollection.CountDocuments(ctx, filter)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if count == 0 {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Message: "Group does not exist",
+				Status:  "400",
+				Error:   "group_does_not_exist",
 			}
-			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
-
-		userDoc := bson.M{}
-
-		userErr := userUpdateInfo.Decode(&userDoc)
-		fmt.Println(userErr)
-
-		doc := bson.M{}
-		err1 := updateInfo.Decode(&doc)
-		if err1 != nil {
-			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get count of the documents",
-				Status:  "500",
-				Error:   err1.Error(),
-			}
-			c.JSON(http.StatusInternalServerError, internalServerResponse)
-			return
+		update := bson.M{"$push": bson.M{"users": bson.M{"$email": acceptInv.Email}}}
+		result, err := groupCollection.UpdateMany(ctx, filter, update)
+		if err != nil {
+			log.Fatal(err)
 		}
-		c.JSON(http.StatusCreated, doc)
+		fmt.Printf("Matched %v documents and modified %v documents\n", result.MatchedCount, result.ModifiedCount)
+		c.JSON(http.StatusOK, "Invitation Accepted")
 	}
 }
 
