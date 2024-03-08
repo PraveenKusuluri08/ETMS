@@ -14,4 +14,6 @@ func GroupRouter(router *gin.RouterGroup) {
 	router.POST("/accept_invitation", groups.AcceptInvitation())
 
 	router.POST("/get_users", groups.DisplaUsers())
+
+	router.POST("/update_group_name", groups.UpdateGroup())
 }

@@ -279,3 +279,58 @@ func DisplaUsers() gin.HandlerFunc {
 		c.JSON(http.StatusOK, group)
 	}
 }
+
+func UpdateGroup() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		type group struct {
+			group_name     string
+			new_group_name string
+		}
+		var g group
+		if err := c.BindJSON(&g); err != nil {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Message: "Please provide fields properly",
+				Status:  "400",
+				Error:   err.Error(),
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+			return
+		}
+		filter := bson.M{"group_name": g.group_name}
+		count, err := groupCollection.CountDocuments(ctx, filter)
+		if err != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to get count of the documents",
+				Status:  "500",
+				Error:   err.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		if count == 0 {
+			statusBadRequest := endpoints.BadRequestResponse{
+				Message: "Group is not exists. Please try again with different group name",
+				Status:  "400",
+				Error:   "group_name_not_exists",
+			}
+			c.JSON(http.StatusBadRequest, statusBadRequest)
+			return
+		}
+		update := bson.M{"$set": bson.M{"group_name": g.new_group_name}}
+
+		result := groupCollection.FindOneAndUpdate(ctx, filter, update)
+
+		if result.Err() != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to get count of the documents",
+				Status:  "500",
+				Error:   result.Err().Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Group name updated successfully"})
+	}
+}
