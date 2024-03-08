@@ -19,6 +19,7 @@ type GroupController struct {
 }
 
 var groupCollection = bootstrap.GetCollection(bootstrap.ClientDB, "Groups")
+var usersCollection = bootstrap.GetCollection(bootstrap.ClientDB, "Users")
 
 func CreateGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -198,7 +199,30 @@ func AcceptInvitation() gin.HandlerFunc {
 
 		// if the user is not exists then need to insert the user to the users array in db
 		update := bson.M{"$push": bson.M{"users": bson.M{"email": email}}}
+
 		updateInfo := groupCollection.FindOneAndUpdate(ctx, filter, update)
+
+		//find the user in the users array and update the users collection in that groups array
+
+		filterUser := bson.M{"email": email}
+		updateUsersCol := bson.M{"groups": bson.M{"$in": bson.M{"group_name": groupName}}}
+
+		userUpdateInfo := usersCollection.FindOneAndUpdate(ctx, filterUser, updateUsersCol)
+
+		if userUpdateInfo.Err() != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to update the group in users collection",
+				Status:  "500",
+				Error:   userUpdateInfo.Err().Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+
+		userDoc := bson.M{}
+
+		userErr := userUpdateInfo.Decode(&userDoc)
+		fmt.Println(userErr)
 
 		doc := bson.M{}
 		err1 := updateInfo.Decode(&doc)
@@ -332,5 +356,65 @@ func UpdateGroup() gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "Group name updated successfully"})
+	}
+}
+
+func RemoveGroupMember() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		type group struct {
+			group_name string
+			email      string
+		}
+		var g group
+		if err := c.BindJSON(&g); err != nil {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Message: "Please provide fields properly",
+				Status:  "400",
+				Error:   err.Error(),
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+			return
+		}
+
+		// first check the group name is exists or not and if so then find the user and delete the user from the group
+		// here user lies in the users array in db as users:[{email: "user@example.com}]
+		filter := bson.M{"group_name": g.group_name}
+
+		count, err := groupCollection.CountDocuments(ctx, filter)
+		if err != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to get count of the documents",
+				Status:  "500",
+				Error:   err.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		if count == 0 {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Message: "Group is not exists. Please try again with different group name",
+				Status:  "400",
+				Error:   "group_name_not_exists",
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+			return
+		}
+		update := bson.M{"$pull": bson.M{"users": bson.M{"email": g.email}}}
+		result := groupCollection.FindOneAndUpdate(ctx, filter, update)
+		if result.Err() != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to delete the user from the group",
+				Status:  "500",
+				Error:   result.Err().Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		var updatedGroup Group
+		result.Decode(&updatedGroup)
+
+		c.JSON(http.StatusOK, gin.H{"updatedGroup": updatedGroup})
 	}
 }

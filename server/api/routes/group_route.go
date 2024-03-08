@@ -15,5 +15,7 @@ func GroupRouter(router *gin.RouterGroup) {
 
 	router.POST("/get_users", groups.DisplaUsers())
 
-	router.POST("/update_group_name", groups.UpdateGroup())
+	router.PUT("/update_group_name", groups.UpdateGroup())
+
+	router.PUT("/remove_group_member", groups.RemoveGroupMember())
 }
