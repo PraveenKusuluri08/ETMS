@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Praveenkusuluri08/bootstrap"
@@ -240,54 +241,31 @@ func AcceptInvitation() gin.HandlerFunc {
 func DisplaUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-		var group Group
 		defer cancel()
-		groupname := c.Query("GroupName")
-		fmt.Println(groupname)
-		//check if the group name is already exists or not and next find the users by using projection print only the users emails address
-
-		filter := bson.M{"group_name": groupname}
-		count, err := groupCollection.CountDocuments(ctx, filter)
-		if err != nil {
-			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get count of the documents",
-				Status:  "500",
-				Error:   err.Error(),
-			}
-			c.JSON(http.StatusInternalServerError, internalServerResponse)
-			return
-		}
-		if count == 0 {
-			statusBadRequest := endpoints.BadRequestResponse{
-				Message: "Group is not exists. Please try again with different group name",
+		groupName, isQueryParamExists := c.GetQuery("group_name")
+		groupName = strings.TrimSpace(groupName)
+		if !isQueryParamExists {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Message: "Please provide group name",
 				Status:  "400",
-				Error:   "group_name_not_exists",
+				Error:   "group_name_required",
 			}
-			c.JSON(http.StatusBadRequest, statusBadRequest)
+			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
+		var result bson.M
+		err := groupCollection.FindOne(ctx, bson.M{"group_name": groupName}).Decode(&result)
 
-		cursor, err := groupCollection.Find(ctx, filter)
 		if err != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get count of the documents",
+				Message: "Failed to get the data from db",
 				Status:  "500",
 				Error:   err.Error(),
 			}
 			c.JSON(http.StatusInternalServerError, internalServerResponse)
 			return
 		}
-
-		if err := cursor.All(ctx, &group); err != nil {
-			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get the documents",
-				Status:  "500",
-				Error:   err.Error(),
-			}
-			c.JSON(http.StatusInternalServerError, internalServerResponse)
-			return
-		}
-		c.JSON(http.StatusOK, group)
+		c.JSON(http.StatusOK, gin.H{"users": result["users"]})
 	}
 }
 
@@ -295,11 +273,7 @@ func UpdateGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		type group struct {
-			group_name     string
-			new_group_name string
-		}
-		var g group
+		var g UpdateGroupStruct
 		if err := c.BindJSON(&g); err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
 				Message: "Please provide fields properly",
@@ -309,7 +283,8 @@ func UpdateGroup() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
-		filter := bson.M{"group_name": g.group_name}
+		fmt.Println("groupName", g)
+		filter := bson.M{"group_name": g.GroupName}
 		count, err := groupCollection.CountDocuments(ctx, filter)
 		if err != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
@@ -329,7 +304,7 @@ func UpdateGroup() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, statusBadRequest)
 			return
 		}
-		update := bson.M{"$set": bson.M{"group_name": g.new_group_name}}
+		update := bson.M{"$set": bson.M{"group_name": g.NewGroupName}}
 
 		result := groupCollection.FindOneAndUpdate(ctx, filter, update)
 
@@ -350,11 +325,8 @@ func RemoveGroupMember() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		type group struct {
-			group_name string
-			email      string
-		}
-		var g group
+
+		var g AcceptInvitationStruct
 		if err := c.BindJSON(&g); err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
 				Message: "Please provide fields properly",
@@ -364,10 +336,10 @@ func RemoveGroupMember() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
-
+		fmt.Println(g.GroupName)
 		// first check the group name is exists or not and if so then find the user and delete the user from the group
 		// here user lies in the users array in db as users:[{email: "user@example.com}]
-		filter := bson.M{"group_name": g.group_name}
+		filter := bson.M{"group_name": g.GroupName}
 
 		count, err := groupCollection.CountDocuments(ctx, filter)
 		if err != nil {
@@ -388,7 +360,7 @@ func RemoveGroupMember() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
-		update := bson.M{"$pull": bson.M{"users": bson.M{"email": g.email}}}
+		update := bson.M{"$pull": bson.M{"users": bson.M{"email": g.Email}}}
 		result := groupCollection.FindOneAndUpdate(ctx, filter, update)
 		if result.Err() != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
@@ -399,6 +371,8 @@ func RemoveGroupMember() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, internalServerResponse)
 			return
 		}
+		// after the user email is removed from the users array in the groups collection then need to remove
+		// the group form the users collection users data also
 		var updatedGroup Group
 		result.Decode(&updatedGroup)
 
