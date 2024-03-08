@@ -3,10 +3,10 @@ package groups
 import "go.mongodb.org/mongo-driver/bson/primitive"
 
 type Group struct {
-	ID        primitive.ObjectID  `bson:"_id"`
-	GroupName string              `bson:"group_name" validate:"required"`
-	Users     []map[string]string `bson:"users" validate:"required"`
-	Type      string              `bson:"type" validate:"required"`
+	ID        primitive.ObjectID  `bson:"_id,omitempty"`
+	GroupName string              `bson:"group_name,omitempty" validate:"required"`
+	Users     []map[string]string `bson:"users,omitempty" validate:"required"`
+	Type      string              `bson:"type,omitempty" validate:"required"`
 }
 
 type Invitation struct {
@@ -17,4 +17,9 @@ type Invitation struct {
 type AcceptInvitationStruct struct {
 	GroupName string `json:"groupname"`
 	Email     string `json:"email"`
+}
+
+type UpdateGroupStruct struct {
+	GroupName string `json:"groupname"`
+	NewGroupName string `json:"new_group_name"`
 }
