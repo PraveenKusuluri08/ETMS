@@ -166,6 +166,36 @@ func AcceptInvitation() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
+		var users[]map[string]string
+		users=append(users,map[string]string {"email":acceptInv.Email})
+		userFilter:= bson.M{
+			"group_name":acceptInv.GroupName,
+			"users.email":bson.M{
+				"$in":users,
+			},
+		}
+
+		count,err= groupCollection.CountDocuments(ctx,userFilter)
+
+		if err!=nil{
+			internalServerResponse := endpoints.InternalServerResponse{
+				Message: "Failed to get count of the documents",
+				Status:  "500",
+				Error:   err.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		if count > 0 {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Message: "User already exists. Please try again with different user name",
+				Status:  "400",
+				Error:   "user_exists",
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+			return
+		}
+
 		update := bson.M{"$push": bson.M{"users": bson.M{"$email": acceptInv.Email}}}
 		result, err := groupCollection.UpdateMany(ctx, filter, update)
 		if err != nil {
@@ -181,22 +211,11 @@ func DisplaUsers() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 		var group Group
 		defer cancel()
-		type D struct {
-			groupname string
-		}
-		var d D
+		groupname:=c.Query("GroupName")
+		fmt.Println(groupname)
 		//check if the group name is already exists or not and next find the users by using projection print only the users emails address
-		err := c.BindJSON(&d)
-		if err != nil {
-			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Please provide fields properly",
-				Status:  "400",
-				Error:   err.Error(),
-			}
-			c.JSON(http.StatusBadRequest, badRequestResponse)
-			return
-		}
-		filter := bson.M{"group_name": d.groupname}
+		
+		filter := bson.M{"group_name": groupname}
 		count, err := groupCollection.CountDocuments(ctx, filter)
 		if err != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
