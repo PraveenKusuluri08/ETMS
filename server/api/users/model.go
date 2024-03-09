@@ -8,4 +8,7 @@ type User struct {
 	Email    string              `bson:"email" validate:"required"`
 	Password string              `bson:"password" validate:"required"`
 	Groups   []map[string]string `bson:"groups"`
+	Uid      string              `bson:"uid"`
+	Role     string              `bson:"role" validate:"required"`
+	Token    string              `bson:"token"`
 }
