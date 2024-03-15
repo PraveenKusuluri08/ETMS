@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/Praveenkusuluri08/api/users"
 	"github.com/dgrijalva/jwt-go"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -20,7 +20,19 @@ type SignInDetails struct {
 	jwt.StandardClaims
 }
 
-func GenerateToken(user users.User) (string, error) {
+type User struct {
+	ID        primitive.ObjectID  `bson:"_id"`
+	Username  string              `bson:"username"`
+	Email     string              `bson:"email" validate:"required"`
+	Password  string              `bson:"password" validate:"required"`
+	Groups    []map[string]string `bson:"groups"`
+	Uid       string              `bson:"uid"`
+	Role      string              `bson:"role" validate:"required"`
+	Token     string              `bson:"token"`
+	CreatedAt string              `bson:"created_at"`
+}
+
+func GenerateToken(user User) (string, error) {
 	claims := &SignInDetails{
 		Email: user.Email,
 		Role:  user.Role,
