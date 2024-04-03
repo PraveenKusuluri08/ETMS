@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/Praveenkusuluri08/api/routes"
-	"github.com/Praveenkusuluri08/bootstrap"
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"log"
 	"net/http"
 	"os"
 	"sync"
+
+	"github.com/Praveenkusuluri08/api/routes"
+	"github.com/Praveenkusuluri08/bootstrap"
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 var wg sync.WaitGroup

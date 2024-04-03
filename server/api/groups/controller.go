@@ -137,6 +137,7 @@ func contains(slice []interface{}, value string) bool {
 	return false
 }
 
+//invited user need to accept the invitation and join to the group
 func AcceptInvitation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
