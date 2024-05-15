@@ -12,7 +12,6 @@ type UserStruct struct {
 	Password  string              `bson:"password" validate:"required"`
 	Groups    []map[string]string `bson:"groups"`
 	Uid       string              `bson:"uid"`
-	Token     string              `bson:"token"`
 	CreatedAt string              `bson:"created_at"`
 }
 
@@ -20,4 +19,13 @@ type SignInDetails struct {
 	Email string
 	Uid   string
 	jwt.StandardClaims
+}
+
+type UserSigninStruct struct {
+	Email    string `json:"email" valudate:"required"`
+	Password string `json:"password" validate:"required"`
+}
+
+type UserSigninResponse struct {
+	Token string `json:"token"`
 }

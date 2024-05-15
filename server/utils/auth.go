@@ -79,15 +79,13 @@ func ValidateToken(token string) (claims *SignInDetails, msg string) {
 
 }
 
-func HashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), 20)
-	return string(hash), err
+func HashPassword(password string) string {
+	hash, _ := bcrypt.GenerateFromPassword([]byte(password), 20)
+	return string(hash)
 }
 
-func DecryptPassword(password, hash string) (string, error) {
+func DecryptPassword(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	if err != nil {
-		return "", err
-	}
-	return password, nil
+	fmt.Println(err)
+	return err != nil
 }

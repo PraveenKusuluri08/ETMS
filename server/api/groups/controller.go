@@ -29,9 +29,11 @@ func CreateGroup() gin.HandlerFunc {
 		var group Group
 		if err := c.BindJSON(&group); err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Please provide fields properly",
-				Status:  "400",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Invalid json data",
+				},
+				Status: "400",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
@@ -39,18 +41,22 @@ func CreateGroup() gin.HandlerFunc {
 		count, err := groupCollection.CountDocuments(ctx, bson.M{"group_name": group.GroupName})
 		if err != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get count of the documents",
-				Status:  "500",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Invalid json data",
+				},
+				Status: "500",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusInternalServerError, internalServerResponse)
 			return
 		}
 		if count > 0 {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Group Name already exists. Please try again with different group name",
-				Status:  "400",
-				Error:   "group_name_exists",
+				Msg: endpoints.ErrorMessage{
+					Name: "Group Name already exists. Please try again with different group name",
+				},
+				Status: "400",
+				Error:  "group_name_exists",
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
@@ -60,9 +66,11 @@ func CreateGroup() gin.HandlerFunc {
 		inserted, err := groupCollection.InsertOne(ctx, group)
 		if err != nil {
 			statusInternalServerErrorResponse := endpoints.InternalServerResponse{
-				Message: fmt.Sprintf("Failed to insert group"),
-				Status:  "500",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: fmt.Sprintf("Failed to insert group"),
+				},
+				Status: "500",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusInternalServerError, statusInternalServerErrorResponse)
 			return
@@ -84,15 +92,42 @@ func InviteGroupMembers() gin.HandlerFunc {
 		var invitation Invitation
 		if err := c.BindJSON(&invitation); err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Please provide fields properly",
-				Status:  "400",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Please provide fields properly",
+				},
+				Status: "400",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
 		fmt.Println(invitation)
 
+		//check if the group is exists or not in the database
+		filter_group := bson.M{"group_name": invitation.GroupName}
+		count, group_count_error := groupCollection.CountDocuments(ctx, filter_group)
+		if group_count_error != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Msg: endpoints.ErrorMessage{
+					Name: "Failed to check group exists or not in the db",
+				},
+				Status: "500",
+				Error:  group_count_error.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		if count == 0 {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Msg: endpoints.ErrorMessage{
+					Name: "Group Name does not exists",
+				},
+				Status: "400",
+				Error:  "group_name_not_exists",
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+			return
+		}
 		// TODO:first check the user is already exists in the users array in db
 		//TODO: if so then send the error message like user already exists
 		// if not then perform another query to check the user is already exists in the
@@ -146,9 +181,11 @@ func AcceptInvitation() gin.HandlerFunc {
 		var acceptInv AcceptInvitationStruct
 		if err := c.BindJSON(&acceptInv); err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Please provide fields properly",
-				Status:  "400",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Please provide fields properly",
+				},
+				Status: "400",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
@@ -160,9 +197,11 @@ func AcceptInvitation() gin.HandlerFunc {
 		}
 		if count == 0 {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Group does not exist",
-				Status:  "400",
-				Error:   "group_does_not_exist",
+				Msg: endpoints.ErrorMessage{
+					Name: "Group does not exist",
+				},
+				Status: "400",
+				Error:  "group_does_not_exist",
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
@@ -177,9 +216,11 @@ func AcceptInvitation() gin.HandlerFunc {
 		}
 		if invcount < 1 {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "User is not invited. Please invite the user first",
-				Status:  "400",
-				Error:   "user_not_invited",
+				Msg: endpoints.ErrorMessage{
+					Name: "User is not invited. Please invite the user first",
+				},
+				Status: "400",
+				Error:  "user_not_invited",
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
@@ -198,18 +239,22 @@ func AcceptInvitation() gin.HandlerFunc {
 
 		if err != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get count of the documents",
-				Status:  "500",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Failed to get count of the documents",
+				},
+				Status: "500",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusInternalServerError, internalServerResponse)
 			return
 		}
 		if count > 0 {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "User already exists. Please try again with different user name",
-				Status:  "400",
-				Error:   "user_exists",
+				Msg: endpoints.ErrorMessage{
+					Name: "User already exists. Please try again with different user name",
+				},
+				Status: "400",
+				Error:  "user_exists",
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
@@ -246,9 +291,11 @@ func DisplaUsers() gin.HandlerFunc {
 		groupName = strings.TrimSpace(groupName)
 		if !isQueryParamExists {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Please provide group name",
-				Status:  "400",
-				Error:   "group_name_required",
+				Msg: endpoints.ErrorMessage{
+					Name: "Please provide group name",
+				},
+				Status: "400",
+				Error:  "group_name_required",
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
@@ -258,9 +305,11 @@ func DisplaUsers() gin.HandlerFunc {
 
 		if err != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get the data from db",
-				Status:  "500",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Failed to get the data from db",
+				},
+				Status: "500",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusInternalServerError, internalServerResponse)
 			return
@@ -276,9 +325,11 @@ func UpdateGroup() gin.HandlerFunc {
 		var g UpdateGroupStruct
 		if err := c.BindJSON(&g); err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Please provide fields properly",
-				Status:  "400",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Please provide fields properly",
+				},
+				Status: "400",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
@@ -288,18 +339,22 @@ func UpdateGroup() gin.HandlerFunc {
 		count, err := groupCollection.CountDocuments(ctx, filter)
 		if err != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get count of the documents",
-				Status:  "500",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Failed to get count of the documents",
+				},
+				Status: "500",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusInternalServerError, internalServerResponse)
 			return
 		}
 		if count == 0 {
 			statusBadRequest := endpoints.BadRequestResponse{
-				Message: "Group is not exists. Please try again with different group name",
-				Status:  "400",
-				Error:   "group_name_not_exists",
+				Msg: endpoints.ErrorMessage{
+					Name: "Group is not exists. Please try again with different group name",
+				},
+				Status: "400",
+				Error:  "group_name_not_exists",
 			}
 			c.JSON(http.StatusBadRequest, statusBadRequest)
 			return
@@ -310,9 +365,11 @@ func UpdateGroup() gin.HandlerFunc {
 
 		if result.Err() != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get count of the documents",
-				Status:  "500",
-				Error:   result.Err().Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Failed to get count of the documents",
+				},
+				Status: "500",
+				Error:  result.Err().Error(),
 			}
 			c.JSON(http.StatusInternalServerError, internalServerResponse)
 			return
@@ -329,9 +386,11 @@ func RemoveGroupMember() gin.HandlerFunc {
 		var g AcceptInvitationStruct
 		if err := c.BindJSON(&g); err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Please provide fields properly",
-				Status:  "400",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Please provide fields properly",
+				},
+				Status: "400",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
@@ -344,18 +403,22 @@ func RemoveGroupMember() gin.HandlerFunc {
 		count, err := groupCollection.CountDocuments(ctx, filter)
 		if err != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get count of the documents",
-				Status:  "500",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Failed to get count of the documents",
+				},
+				Status: "500",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusInternalServerError, internalServerResponse)
 			return
 		}
 		if count == 0 {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Group is not exists. Please try again with different group name",
-				Status:  "400",
-				Error:   "group_name_not_exists",
+				Msg: endpoints.ErrorMessage{
+					Name: "Group is not exists. Please try again with different group name",
+				},
+				Status: "400",
+				Error:  "group_name_not_exists",
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
@@ -364,9 +427,11 @@ func RemoveGroupMember() gin.HandlerFunc {
 		result := groupCollection.FindOneAndUpdate(ctx, filter, update)
 		if result.Err() != nil {
 			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to delete the user from the group",
-				Status:  "500",
-				Error:   result.Err().Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Failed to delete the user from the group",
+				},
+				Status: "500",
+				Error:  result.Err().Error(),
 			}
 			c.JSON(http.StatusInternalServerError, internalServerResponse)
 			return

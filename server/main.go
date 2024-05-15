@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/Praveenkusuluri08/api/routes"
-	"github.com/Praveenkusuluri08/bootstrap"
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"log"
 	"net/http"
 	"os"
 	"sync"
+
+	"github.com/Praveenkusuluri08/api/routes"
+	"github.com/Praveenkusuluri08/bootstrap"
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 var wg sync.WaitGroup
@@ -40,8 +41,8 @@ func main() {
 	})
 	wg.Add(1)
 
-	//router
-	routes.SetUp(router)
+	routes.GroupRouter(router.Group("/api/v1/groups"))
+	routes.UserRoutes(router.Group("/api/v1/users"))
 
 	go func() {
 		fmt.Println("Server is running in port 8080")

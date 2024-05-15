@@ -13,9 +13,11 @@ func AuthMiddleware() gin.HandlerFunc {
 		token := c.Request.Header.Get("Authorization")
 		if token == "" {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Please provide token",
-				Status:  "400",
-				Error:   "token_not_provided",
+				Msg: endpoints.ErrorMessage{
+					Name: "Please provide token",
+				},
+				Status: "400",
+				Error:  "token_not_provided",
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
@@ -23,9 +25,11 @@ func AuthMiddleware() gin.HandlerFunc {
 		claims, err := utils.ValidateToken(token)
 		if err != "" {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: err,
-				Status:  "400",
-				Error:   err,
+				Msg: endpoints.ErrorMessage{
+					Name: err,
+				},
+				Status: "400",
+				Error:  err,
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
