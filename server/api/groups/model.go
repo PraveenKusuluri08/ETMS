@@ -1,6 +1,18 @@
 package groups
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+type GroupInterface interface {
+	UpdateGroup() gin.HandlerFunc
+	CreateGroup() gin.HandlerFunc
+	RemoveGroupMember() gin.HandlerFunc
+	InviteGroupMembers() gin.HandlerFunc
+	AcceptInvitation() gin.HandlerFunc
+	DisplayUsers() gin.HandlerFunc
+}
 
 type Group struct {
 	ID        primitive.ObjectID  `bson:"_id,omitempty"`
@@ -20,6 +32,8 @@ type AcceptInvitationStruct struct {
 }
 
 type UpdateGroupStruct struct {
-	GroupName string `json:"groupname"`
+	GroupName    string `json:"groupname"`
 	NewGroupName string `json:"new_group_name"`
 }
+
+type GroupService struct{}

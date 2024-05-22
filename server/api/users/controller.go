@@ -1,72 +1,205 @@
 package users
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"net/http"
-	"time"
 	"os"
+	"time"
+
 	"github.com/Praveenkusuluri08/bootstrap"
-	"github.com/Praveenkusuluri08/endpoints"
+	endpoints "github.com/Praveenkusuluri08/types"
 	"github.com/Praveenkusuluri08/utils"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"golang.org/x/net/context"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/crypto/bcrypt"
 )
 
-var usercollection = bootstrap.GetCollection(bootstrap.ClientDB, "Users")
+var usersCollection = bootstrap.GetCollection(bootstrap.ClientDB, "Users")
 
 func CreateUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+		var user UserStruct
 		defer cancel()
-		var u UserStruct
-		if err := c.BindJSON(&u); err != nil {
+		if err := c.BindJSON(&user); err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Please provide the fields properly",
-				Status:  "400",
-				Error:   err.Error(),
+				Msg: endpoints.ErrorMessage{
+					Name: "Please provide data properly",
+				},
+				Status: "400",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
-		filter := bson.M{"email": u.Email}
-		count, err := usercollection.CountDocuments(ctx, filter)
+		userCounter := bson.M{"email": user.Email}
+		count, err := usersCollection.CountDocuments(ctx, userCounter)
+		fmt.Println(count)
 		if err != nil {
-			internalServerResponse := endpoints.InternalServerResponse{
-				Message: "Failed to get count of the documents",
-				Status:  "500",
-				Error:   err.Error(),
+			internalservererrorresponse := endpoints.InternalServerResponse{
+				Msg: endpoints.ErrorMessage{
+					Name: "Failed to get count of the documents",
+				},
+				Status: "500",
+				Error:  err.Error(),
 			}
-			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			c.JSON(http.StatusInternalServerError, internalservererrorresponse)
 			return
 		}
 		if count > 0 {
+			badrequestresponse := &endpoints.BadRequestResponse{
+				Msg: endpoints.ErrorMessage{
+					Name: "User already exists",
+				},
+				Status: "400",
+				Error:  "user_exists",
+			}
+			c.JSON(http.StatusBadRequest, badrequestresponse)
+			return
+		}
+
+		currentTime := time.Now()
+		hashedPassword := hash_password(user.Password)
+		user.Password = hashedPassword
+		user.CreatedAt = currentTime.Format(time.ANSIC)
+		user.Uid = uuid.NewString()
+		user.ID = primitive.NewObjectID()
+		_, insErr := usersCollection.InsertOne(ctx, user)
+		if insErr != nil {
+			internalServerErrorResponse := endpoints.InternalServerResponse{
+				Msg: endpoints.ErrorMessage{
+					Name: "Failed to create the user",
+				},
+				Status: "500",
+				Error:  insErr.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerErrorResponse)
+			return
+		}
+
+		c.JSON(http.StatusCreated, gin.H{"message": "User created successfully"})
+	}
+}
+
+func signin(user UserSigninStruct) (endpoints.ErrorResponse, UserSigninResponse) {
+	var ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if user.Password == "" || user.Email == "" {
+		badrequestresponse := endpoints.BadRequestResponse{
+			Msg: endpoints.ErrorMessage{
+				Name: "Please provide data properly",
+			},
+			Status: "400",
+			Error:  "data_not_provided",
+		}
+
+		return endpoints.ErrorResponse{
+			BadRequestResponse: badrequestresponse,
+		}, UserSigninResponse{}
+	}
+	filter_user_email := bson.M{"email": user.Email}
+	count, countError := usersCollection.CountDocuments(ctx, filter_user_email)
+	if countError != nil {
+		internalServerErrorResponse := endpoints.InternalServerResponse{
+			Msg: endpoints.ErrorMessage{
+				Name: "Failed to get count of the documents",
+			},
+			Status: "500",
+			Error:  countError.Error(),
+		}
+		return endpoints.ErrorResponse{
+			InternalServerResponse: internalServerErrorResponse,
+		}, UserSigninResponse{}
+	}
+	if count < 1 {
+		badrequestresponse := &endpoints.BadRequestResponse{
+			Msg: endpoints.ErrorMessage{
+				Name: "User does not exist",
+			},
+			Status: "400",
+			Error:  "user_does_not_exist",
+		}
+		return endpoints.ErrorResponse{
+			BadRequestResponse: *badrequestresponse,
+		}, UserSigninResponse{}
+	}
+	var userStruct UserStruct
+	if err := usersCollection.FindOne(ctx, filter_user_email).Decode(&userStruct); err != nil {
+		internalServerErrorResponse := endpoints.InternalServerResponse{
+			Msg: endpoints.ErrorMessage{
+				Name: "Failed to get the user details",
+			},
+			Status: "500",
+			Error:  err.Error(),
+		}
+		return endpoints.ErrorResponse{
+			InternalServerResponse: internalServerErrorResponse,
+		}, UserSigninResponse{}
+	}
+	db_password := userStruct.Password
+	// match the current given password with the db password
+	is_password_match := utils.DecryptPassword(user.Password, db_password)
+	fmt.Println(is_password_match)
+	if is_password_match {
+		badRequestResponse := endpoints.BadRequestResponse{
+			Msg: endpoints.ErrorMessage{
+				Name: "Password does not match",
+			},
+			Status: "400",
+			Error:  "password_does_not_match",
+		}
+
+		return endpoints.ErrorResponse{
+			BadRequestResponse: badRequestResponse,
+		}, UserSigninResponse{}
+	}
+	token, tokenError := generateToken(userStruct)
+	if tokenError != nil {
+		internalServerResponse := endpoints.InternalServerResponse{
+			Msg: endpoints.ErrorMessage{
+				Name: "Failed to generate token",
+			},
+			Status: "500",
+			Error:  tokenError.Error(),
+		}
+		return endpoints.ErrorResponse{
+			InternalServerResponse: internalServerResponse,
+		}, UserSigninResponse{}
+	}
+	return endpoints.ErrorResponse{}, UserSigninResponse{Token: token}
+}
+
+func SignInUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var user UserSigninStruct
+		if err := c.BindJSON(&user); err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
-				Message: "Email already exists. Please try again with different email address",
-				Status:  "400",
-				Error:   "email_already_exists",
+				Msg: endpoints.ErrorMessage{
+					Name: "Please provide data properly",
+				},
+				Status: "400",
+				Error:  err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
-		current_time := time.Now()
-		hasPassword, _ := utils.HashPassword(u.Password)
-		createdAt := current_time.Format(time.ANSIC)
-		u.Password = hasPassword
-		u.CreatedAt = createdAt
-		u.Token,_=generateToken(u)
-		insertedData,err:=usercollection.InsertOne(ctx, u)
-		if err!= nil {
-			internalServerResponse := endpoints.InternalServerResponse{
-                Message: "Failed to insert user",
-                Status:  "500",
-                Error:   err.Error(),
-            }
-            c.JSON(http.StatusInternalServerError, internalServerResponse)
-            return
+		errorResponse, userSigninResponse := signin(user)
+		fmt.Println(errorResponse)
+		if errorResponse.InternalServerResponse.Error != "" {
+			c.JSON(http.StatusInternalServerError, errorResponse)
+			return
 		}
-		c.JSON(http.StatusCreated, insertedData.InsertedID)
+		if errorResponse.BadRequestResponse.Error != "" {
+			c.JSON(http.StatusBadRequest, errorResponse)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"token": userSigninResponse.Token})
 	}
 }
 
@@ -86,4 +219,9 @@ func generateToken(user UserStruct) (string, error) {
 		return "", err
 	}
 	return token, err
+}
+
+func hash_password(password string) string {
+	hash, _ := bcrypt.GenerateFromPassword([]byte(password), 15)
+	return string(hash)
 }

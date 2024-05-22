@@ -5,7 +5,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func UserRoutes(router *gin.RouterGroup){
-	
-	router.POST("/signup",users.CreateUser())
+func UserRoutes(router *gin.RouterGroup) {
+
+	router.POST("/signup", users.CreateUser())
+
+	router.POST("/signin", users.SignInUser())
 }

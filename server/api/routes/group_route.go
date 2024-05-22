@@ -6,16 +6,16 @@ import (
 )
 
 func GroupRouter(router *gin.RouterGroup) {
-
-	router.POST("/creategroup", groups.CreateGroup())
+	var groupInterface groups.GroupInterface = &groups.GroupService{}
+	router.POST("/creategroup", groupInterface.CreateGroup())
 
 	router.POST("/invite", groups.InviteGroupMembers())
 
-	router.POST("/accept_invitation", groups.AcceptInvitation())
+	router.POST("/accept_invitation", groupInterface.AcceptInvitation())
 
-	router.POST("/get_users", groups.DisplaUsers())
+	router.POST("/get_users", groupInterface.DisplayUsers())
 
-	router.PUT("/update_group_name", groups.UpdateGroup())
+	router.PUT("/update_group_name", groupInterface.UpdateGroup())
 
-	router.PUT("/remove_group_member", groups.RemoveGroupMember())
+	router.PUT("/remove_group_member", groupInterface.RemoveGroupMember())
 }

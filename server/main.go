@@ -25,7 +25,7 @@ type ENV struct {
 func main() {
 	env := GetEnvConfig()
 
-	app := bootstrap.App(env.MONGODB_URI)
+	app := bootstrap.App(env.MONGODB_URI, env.AppEnv == "production")
 	fmt.Println(app)
 	router := gin.Default()
 
@@ -41,7 +41,6 @@ func main() {
 	})
 	wg.Add(1)
 
-	//router
 	routes.SetUp(router)
 
 	go func() {
@@ -60,7 +59,6 @@ func GetEnvConfig() *ENV {
 	env := ENV{}
 	env.MONGODB_URI = os.Getenv("MONGODB_URI")
 	env.PORT = os.Getenv("PORT")
-	env.AppEnv = os.Getenv("APP_ENV")
 	env.AppEnv = os.Getenv("APP_ENV")
 	return &env
 }
