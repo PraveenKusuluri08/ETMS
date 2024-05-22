@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Praveenkusuluri08/bootstrap"
-	"github.com/Praveenkusuluri08/endpoints"
+	endpoints "github.com/Praveenkusuluri08/types"
 	"github.com/Praveenkusuluri08/utils"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"

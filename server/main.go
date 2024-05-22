@@ -25,7 +25,7 @@ type ENV struct {
 func main() {
 	env := GetEnvConfig()
 
-	app := bootstrap.App(env.MONGODB_URI)
+	app := bootstrap.App(env.MONGODB_URI, env.AppEnv == "production")
 	fmt.Println(app)
 	router := gin.Default()
 
@@ -41,8 +41,7 @@ func main() {
 	})
 	wg.Add(1)
 
-	routes.GroupRouter(router.Group("/api/v1/groups"))
-	routes.UserRoutes(router.Group("/api/v1/users"))
+	routes.SetUp(router)
 
 	go func() {
 		fmt.Println("Server is running in port 8080")
@@ -60,7 +59,6 @@ func GetEnvConfig() *ENV {
 	env := ENV{}
 	env.MONGODB_URI = os.Getenv("MONGODB_URI")
 	env.PORT = os.Getenv("PORT")
-	env.AppEnv = os.Getenv("APP_ENV")
 	env.AppEnv = os.Getenv("APP_ENV")
 	return &env
 }

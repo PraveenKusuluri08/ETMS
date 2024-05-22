@@ -3,7 +3,7 @@ package endpoints
 import (
 	"net/http"
 
-	"github.com/Praveenkusuluri08/endpoints"
+	endpoints "github.com/Praveenkusuluri08/types"
 	"github.com/Praveenkusuluri08/utils"
 	"github.com/gin-gonic/gin"
 )
