@@ -1,9 +1,16 @@
 package expenses
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
+	"github.com/Praveenkusuluri08/api/expenses_tracker"
 	"github.com/Praveenkusuluri08/bootstrap"
+	"github.com/Praveenkusuluri08/handlers"
 	endpoints "github.com/Praveenkusuluri08/types"
 	"github.com/gin-gonic/gin"
 )
@@ -20,28 +27,125 @@ import (
 
 var exepnsesCollection = bootstrap.GetCollection(bootstrap.ClientDB, "expenses")
 var usersCollection = bootstrap.GetCollection(bootstrap.ClientDB, "users")
-var groupsCollection = bootstrap.GetCollection(bootstrap.ClientDB, "group")
-var notesCollection = bootstrap.GetCollection(bootstrap.ClientDB, "notes")
 var expenses_trackerCollection = bootstrap.GetCollection(bootstrap.ClientDB, "expenses_tracker")
 
+// This endpoint is specifically for the non group expenses
 func CreateExpense() gin.HandlerFunc {
 	expensesService := &ExpensesService{}
 	return expensesService.CreateExpense()
 }
 func (e *ExpensesService) CreateExpense() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+		userId := c.GetString("uid")
+		// var wg sync.WaitGroup
+
+		defer cancel()
 		var expense Expenses
 		if err := c.BindJSON(&expense); err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
 				Msg: endpoints.ErrorMessage{
-					Name: "Bad Request",
+					Name: "Invalid json data",
 				},
 				Status: "400",
 				Error:  err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
+
 			return
 		}
 
+		isExpenseTitleExists := IsExpenseWithSameTitleExists(userId, expense.Title)
+		if isExpenseTitleExists {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Msg: endpoints.ErrorMessage{
+					Name: "Expense with the same title already exists",
+				},
+				Status: "400",
+				Error:  "expense_title_already_exists",
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+			return
+		}
+		if expense.IsGroup && len(expense.Split.InvolvedPeers) == 2 {
+			splitExpense(&expense, expense.Amount, userId)
+		}
+		if expense.IsGroup && len(expense.Split.InvolvedPeers) > 2 && expense.Split.SplitType == "GROUP_EXPENSE" {
+			splitExpenseWithGroup(&expense, userId)
+		}
+		currentTime := time.Now()
+		expense.CreatedBy = userId
+		expense.SplitNeedToClearBy = currentTime.Format(time.ANSIC)
+
+		_, err := exepnsesCollection.InsertOne(ctx, expense)
+		if err != nil {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Msg: endpoints.ErrorMessage{
+					Name: "Error while creating the expense",
+				},
+				Status: "400",
+				Error:  err.Error(),
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+
+			return
+		}
+		//wait group
+		// wg.Add(len(expense.Split.InvolvedPeers))
+
+		for _, peer := range expense.Split.InvolvedPeers {
+			fmt.Println("peer", peer.PeerID)
+			expense_tracker_info := expenses_tracker.ExpenseTracker_Info{
+				Expense_Created_By:  userId,
+				Expense_Title:       expense.Title,
+				Expense_Description: expense.Description,
+				Expense_Amount:      peer.Amount,
+				Expense_Activity:    fmt.Sprintf(`Expense is created by %s`, userId),
+				Expense_Involved_By: peer.PeerID,
+			}
+			handlers.PushExpense_Tracker(&expense_tracker_info)
+		}
+		c.JSON(http.StatusOK, expense)
 	}
+}
+
+func splitExpense(expense *Expenses, amount float64, userId string) error {
+	switch expense.Split.SplitType {
+	case "YOU_PAID_TOTAL_SPLIT_TO_PEERS":
+		splitAmount := amount / float64(len(expense.Split.InvolvedPeers))
+		for i, peer := range expense.Split.InvolvedPeers {
+			peer.Amount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
+			expense.Split.InvolvedPeers[i] = peer
+		}
+	case "YOU_OWED_FULL_AMOUNT_TO_PEER":
+		splitAmount := amount
+		for i, peer := range expense.Split.InvolvedPeers {
+			peer.PeerID = userId
+			peer.Amount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
+			expense.Split.InvolvedPeers[i] = peer
+		}
+	case "PEER_OWED_FULL_AMOUNT_TO_YOU":
+		splitAmount := amount
+		for i, peer := range expense.Split.InvolvedPeers {
+			peer.Amount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
+			expense.Split.InvolvedPeers[i] = peer
+		}
+
+	default:
+		return errors.New("Invalid split type")
+	}
+	return nil
+}
+
+func splitExpenseWithGroup(expense *Expenses, userId string) {
+	splitAmount := expense.Amount / float64(len(expense.Split.InvolvedPeers)+1)
+	for i, peer := range expense.Split.InvolvedPeers {
+		peer.Amount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
+		expense.Split.InvolvedPeers[i] = peer
+	}
+	currentUser := Peer{
+		PeerID: userId,
+		Amount: strconv.FormatFloat(splitAmount, 'f', -1, 64),
+	}
+	expense.Split.InvolvedPeers = append(expense.Split.InvolvedPeers, currentUser)
 }

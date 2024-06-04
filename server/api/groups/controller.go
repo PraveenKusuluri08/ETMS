@@ -67,6 +67,7 @@ func (g *GroupService) CreateGroup() gin.HandlerFunc {
 				Error:  err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
+
 			return
 		}
 		count, err := groupCollection.CountDocuments(ctx, bson.M{"group_name": group.GroupName})
@@ -90,9 +91,11 @@ func (g *GroupService) CreateGroup() gin.HandlerFunc {
 				Error:  "group_name_exists",
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
+
 			return
 		}
 		group.ID = primitive.NewObjectID()
+		group.CreatedBy = c.GetString("uid")
 
 		inserted, err := groupCollection.InsertOne(ctx, group)
 		if err != nil {
@@ -104,6 +107,7 @@ func (g *GroupService) CreateGroup() gin.HandlerFunc {
 				Error:  err.Error(),
 			}
 			c.JSON(http.StatusInternalServerError, statusInternalServerErrorResponse)
+
 			return
 		}
 		message := fmt.Sprintf("%s insertedDocumentId", inserted.InsertedID)
@@ -129,6 +133,7 @@ func (group *GroupService) UpdateGroup() gin.HandlerFunc {
 				Error:  err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
+
 			return
 		}
 		fmt.Println("groupName", g)
@@ -143,6 +148,7 @@ func (group *GroupService) UpdateGroup() gin.HandlerFunc {
 				Error:  err.Error(),
 			}
 			c.JSON(http.StatusInternalServerError, internalServerResponse)
+
 			return
 		}
 		if count == 0 {
@@ -154,6 +160,7 @@ func (group *GroupService) UpdateGroup() gin.HandlerFunc {
 				Error:  "group_name_not_exists",
 			}
 			c.JSON(http.StatusBadRequest, statusBadRequest)
+
 			return
 		}
 		update := bson.M{"$set": bson.M{"group_name": g.NewGroupName}}
@@ -169,6 +176,7 @@ func (group *GroupService) UpdateGroup() gin.HandlerFunc {
 				Error:  result.Err().Error(),
 			}
 			c.JSON(http.StatusInternalServerError, internalServerResponse)
+
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "Group name updated successfully"})
@@ -190,6 +198,7 @@ func (g *GroupService) InviteGroupMembers() gin.HandlerFunc {
 				Error:  err.Error(),
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
+
 			return
 		}
 		fmt.Println(invitation)
@@ -217,6 +226,7 @@ func (g *GroupService) InviteGroupMembers() gin.HandlerFunc {
 				Error:  "group_name_not_exists",
 			}
 			c.JSON(http.StatusBadRequest, badRequestResponse)
+
 			return
 		}
 		//TODO:First iterate the users array in the request to check the user is exists or not then perform the compound qurery
