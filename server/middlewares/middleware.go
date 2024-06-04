@@ -1,7 +1,9 @@
-package endpoints
+package middlewares
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	endpoints "github.com/Praveenkusuluri08/types"
 	"github.com/Praveenkusuluri08/utils"
@@ -11,6 +13,8 @@ import (
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.Request.Header.Get("Authorization")
+		token = strings.Replace(token, "Bearer ", "", 1)
+		fmt.Println("Token: ", token)
 		if token == "" {
 			badRequestResponse := endpoints.BadRequestResponse{
 				Msg: endpoints.ErrorMessage{

@@ -7,4 +7,7 @@ func SetUp(r *gin.Engine) {
 	GroupRouter(group_router)
 	user_router := r.Group("/api/v1/users")
 	UserRoutes(user_router)
+
+	expense_router := r.Group("/api/v1/expenses")
+	ExpenseRouter(expense_router)
 }

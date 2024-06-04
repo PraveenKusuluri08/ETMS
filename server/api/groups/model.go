@@ -19,6 +19,7 @@ type Group struct {
 	GroupName string              `bson:"group_name,omitempty" validate:"required"`
 	Users     []map[string]string `bson:"users,omitempty" validate:"required"`
 	Type      string              `bson:"type,omitempty" validate:"required"`
+	CreatedBy string              `bson:"created_by,omitempty" validate:"required"`
 }
 
 type Invitation struct {
