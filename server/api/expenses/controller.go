@@ -25,6 +25,10 @@ import (
 // TODO: Store the expense tracker or the logger for the expense based on the expenses ID
 // TODO: Check if the expense is perosonal or not if it is perosonal then store the expenses based on the expense for the user it self like no group involed and it purely personal and make the calculations accordingly
 
+//TODO: While creating an expenses i need to check the previous involved expenses between the two users or the group
+
+//TODO: Like check previous expenses with the userId's in the expenses and based on the amount involved in the expense between the two users then make the new expense with the amount and update the expense tracker
+
 var exepnsesCollection = bootstrap.GetCollection(bootstrap.ClientDB, "expenses")
 var usersCollection = bootstrap.GetCollection(bootstrap.ClientDB, "users")
 var expenses_trackerCollection = bootstrap.GetCollection(bootstrap.ClientDB, "expenses_tracker")
@@ -34,6 +38,7 @@ func CreateExpense() gin.HandlerFunc {
 	expensesService := &ExpensesService{}
 	return expensesService.CreateExpense()
 }
+
 func (e *ExpensesService) CreateExpense() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)

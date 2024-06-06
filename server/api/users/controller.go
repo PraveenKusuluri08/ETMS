@@ -21,7 +21,38 @@ import (
 
 var usersCollection = bootstrap.GetCollection(bootstrap.ClientDB, "Users")
 
+// @Summary		Create new user account
+// @Description	Create a new user account with the provided email and password
+// @Accept			json
+// @Produce		json
+// @Param			user	body		User	true	"User"
+// @Success		201		{string}	string	"User created successfully"
+// @Failure		400		{object}	endpoints.BadRequestResponse
+// @Failure		500		{object}	endpoints.InternalServerResponse
+// @Router			/api/v1/users/signup [post]
+//
+// @Tags			Users
 func CreateUser() gin.HandlerFunc {
+	usersService := &UsersService{}
+	return usersService.CreateUser()
+}
+
+// @Summary		Sign in the user to the account
+// @Description	Sign in the user to the account with the provided email and password
+// @Accept			json
+// @Produce		json
+// @Param			user	body		UserSigninStruct	true	"User Signin"
+// @Success		200		{object}	UserSigninResponse	"User Signin response"
+// @Failure		400		{object}	endpoints.BadRequestResponse
+// @Failure		500		{object}	endpoints.InternalServerResponse
+// @Router			/api/v1/users/signin [post]
+// @Tags			Users
+func SignInUser() gin.HandlerFunc {
+	usersService := &UsersService{}
+	return usersService.SignInUser()
+}
+
+func (u *UsersService) CreateUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 		var user UserStruct
@@ -174,7 +205,7 @@ func signin(user UserSigninStruct) (endpoints.ErrorResponse, UserSigninResponse)
 	return endpoints.ErrorResponse{}, UserSigninResponse{Token: token}
 }
 
-func SignInUser() gin.HandlerFunc {
+func (u *UsersService) SignInUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
 		var user UserSigninStruct
