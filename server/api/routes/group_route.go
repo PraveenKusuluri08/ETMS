@@ -11,7 +11,7 @@ func GroupRouter(router *gin.RouterGroup) {
 	router.Use(middlewares.AuthMiddleware())
 	router.POST("/creategroup", groupInterface.CreateGroup())
 
-	router.POST("/invite", groups.InviteGroupMembers())
+	router.POST("/invite", groupInterface.InviteGroupMembers())
 
 	router.POST("/accept_invitation", groupInterface.AcceptInvitation())
 
