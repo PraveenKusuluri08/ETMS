@@ -72,16 +72,21 @@ func (e *ExpensesService) CreateExpense() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
-		if expense.IsGroup && len(expense.Split.InvolvedPeers) == 2 {
+		if expense.IsGroup && len(expense.Split.InvolvedPeers)+1 == 2 {
 			splitExpense(&expense, expense.Amount, userId)
 		}
 		if expense.IsGroup && len(expense.Split.InvolvedPeers) > 2 && expense.Split.SplitType == "GROUP_EXPENSE" {
-			splitExpenseWithGroup(&expense, userId)
+			splitExpenseWithGroup(&expense, userId, expense.PaidBy)
 		}
+
+		//check the previous expenses between the expense created user and the invloved peers
+		//If the either users involved in the expenses then what ever the amount is involved based on that
+		//split the expense between the users
+
 		currentTime := time.Now()
 		expense.CreatedBy = userId
 		expense.SplitNeedToClearBy = currentTime.Format(time.ANSIC)
-
+		expense.CreatedAt = currentTime.Format(time.ANSIC)
 		_, err := exepnsesCollection.InsertOne(ctx, expense)
 		if err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
@@ -95,9 +100,6 @@ func (e *ExpensesService) CreateExpense() gin.HandlerFunc {
 
 			return
 		}
-		//wait group
-		// wg.Add(len(expense.Split.InvolvedPeers))
-
 		for _, peer := range expense.Split.InvolvedPeers {
 			fmt.Println("peer", peer.PeerID)
 			expense_tracker_info := expenses_tracker.ExpenseTracker_Info{
@@ -114,26 +116,38 @@ func (e *ExpensesService) CreateExpense() gin.HandlerFunc {
 	}
 }
 
+// this function is used to check the involved expenses between the users
+// by using their id's and iterate
+func checkInvolvedExpensesBetweenPeers() {
+
+}
+
 func splitExpense(expense *Expenses, amount float64, userId string) error {
 	switch expense.Split.SplitType {
 	case "YOU_PAID_TOTAL_SPLIT_TO_PEERS":
-		splitAmount := amount / float64(len(expense.Split.InvolvedPeers))
+		splitAmount := amount / float64(len(expense.Split.InvolvedPeers)+1)
 		for i, peer := range expense.Split.InvolvedPeers {
 			peer.Amount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 			expense.Split.InvolvedPeers[i] = peer
+			expense.Split.OwesTo = userId
+			expense.Split.OwesAmount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 		}
 	case "YOU_OWED_FULL_AMOUNT_TO_PEER":
 		splitAmount := amount
 		for i, peer := range expense.Split.InvolvedPeers {
+			expense.Split.OwesTo = peer.PeerID
 			peer.PeerID = userId
 			peer.Amount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 			expense.Split.InvolvedPeers[i] = peer
+			expense.Split.OwesAmount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 		}
 	case "PEER_OWED_FULL_AMOUNT_TO_YOU":
 		splitAmount := amount
 		for i, peer := range expense.Split.InvolvedPeers {
+			expense.Split.OwesTo = userId
 			peer.Amount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 			expense.Split.InvolvedPeers[i] = peer
+			expense.Split.OwesAmount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 		}
 
 	default:
@@ -142,11 +156,33 @@ func splitExpense(expense *Expenses, amount float64, userId string) error {
 	return nil
 }
 
-func splitExpenseWithGroup(expense *Expenses, userId string) {
+func splitExpenseWithGroup(expense *Expenses, userId string, paidBy string) {
 	splitAmount := expense.Amount / float64(len(expense.Split.InvolvedPeers)+1)
+	var owesAmount float64
+
+	// Add the paid user to the InvolvedPeers slice
+	paidUser := Peer{
+		PeerID: paidBy,
+		Amount: strconv.FormatFloat(splitAmount, 'f', -1, 64),
+	}
+	expense.Split.InvolvedPeers = append(expense.Split.InvolvedPeers, paidUser)
+
 	for i, peer := range expense.Split.InvolvedPeers {
+		if peer.PeerID != paidBy {
+			owesAmount += splitAmount
+		}
 		peer.Amount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 		expense.Split.InvolvedPeers[i] = peer
+	}
+
+	expense.Split.OwesTo = paidBy
+	expense.Split.OwesAmount = strconv.FormatFloat(owesAmount, 'f', -1, 64)
+
+	for i, peer := range expense.Split.InvolvedPeers {
+		if peer.PeerID == paidBy {
+			expense.Split.InvolvedPeers = append(expense.Split.InvolvedPeers[:i], expense.Split.InvolvedPeers[i+1:]...)
+			break
+		}
 	}
 	currentUser := Peer{
 		PeerID: userId,
