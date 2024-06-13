@@ -6,12 +6,14 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/Praveenkusuluri08/api/expenses_tracker"
 	"github.com/Praveenkusuluri08/bootstrap"
 	"go.mongodb.org/mongo-driver/bson"
 	"golang.org/x/net/context"
 )
 
 var expensesCollection = bootstrap.GetCollection(bootstrap.ClientDB, "expenses")
+var expensesTrackerCollection = bootstrap.GetCollection(bootstrap.ClientDB, "expenses_tracker")
 
 func IsExpenseWithSameTitleExists(userId string, expense_title string) bool {
 	//TODO: Get all the expenses of the user
@@ -29,4 +31,26 @@ func IsExpenseWithSameTitleExists(userId string, expense_title string) bool {
 		return false
 	}
 	return len(userExpense) > 0
+}
+
+func GetExpensesCreatedByUser(userId string) *expenses_tracker.ExpenseTracker_Info {
+	var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	expenses := &expenses_tracker.ExpenseTracker_Info{}
+	if err := expensesTrackerCollection.FindOne(ctx, bson.M{"expense_created_by": userId}).Decode(&expenses); err != nil {
+		log.Println(err)
+		return nil
+	}
+	return expenses
+}
+
+func InvolvedUserExpensesByUser(userId string) *expenses_tracker.ExpenseTracker_Info {
+	var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	expenses := &expenses_tracker.ExpenseTracker_Info{}
+	if err := expensesTrackerCollection.FindOne(ctx, bson.M{"expense_involved_by": userId}).Decode(&expenses); err != nil {
+		log.Println(err)
+		return nil
+	}
+	return expenses
 }
