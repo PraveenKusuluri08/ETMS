@@ -13,6 +13,8 @@ import (
 	"github.com/Praveenkusuluri08/handlers"
 	endpoints "github.com/Praveenkusuluri08/types"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // TODO: First check the model is properly initialized like api got the response clearly
@@ -30,10 +32,8 @@ import (
 //TODO: Like check previous expenses with the userId's in the expenses and based on the amount involved in the expense between the two users then make the new expense with the amount and update the expense tracker
 
 var exepnsesCollection = bootstrap.GetCollection(bootstrap.ClientDB, "expenses")
-var usersCollection = bootstrap.GetCollection(bootstrap.ClientDB, "users")
-var expenses_trackerCollection = bootstrap.GetCollection(bootstrap.ClientDB, "expenses_tracker")
+var expensesTracker = bootstrap.GetCollection(bootstrap.ClientDB, "expenses_tracker")
 
-// This endpoint is specifically for the non group expenses
 func CreateExpense() gin.HandlerFunc {
 	expensesService := &ExpensesService{}
 	return expensesService.CreateExpense()
@@ -79,15 +79,11 @@ func (e *ExpensesService) CreateExpense() gin.HandlerFunc {
 			splitExpenseWithGroup(&expense, userId, expense.PaidBy)
 		}
 
-		//check the previous expenses between the expense created user and the invloved peers
-		//If the either users involved in the expenses then what ever the amount is involved based on that
-		//split the expense between the users
-
 		currentTime := time.Now()
 		expense.CreatedBy = userId
 		expense.SplitNeedToClearBy = currentTime.Format(time.ANSIC)
 		expense.CreatedAt = currentTime.Format(time.ANSIC)
-		_, err := exepnsesCollection.InsertOne(ctx, expense)
+		expenseCreatedInfo, err := exepnsesCollection.InsertOne(ctx, expense)
 		if err != nil {
 			badRequestResponse := endpoints.BadRequestResponse{
 				Msg: endpoints.ErrorMessage{
@@ -100,28 +96,10 @@ func (e *ExpensesService) CreateExpense() gin.HandlerFunc {
 
 			return
 		}
-		for _, peer := range expense.Split.InvolvedPeers {
-			fmt.Println("peer", peer.PeerID)
-			expense_tracker_info := expenses_tracker.ExpenseTracker_Info{
-				Expense_Created_By:  userId,
-				Expense_Title:       expense.Title,
-				Expense_Description: expense.Description,
-				Expense_Amount:      peer.Amount,
-				Expense_Activity:    fmt.Sprintf(`Expense is created by %s`, userId),
-				Expense_Involved_By: peer.PeerID,
-			}
-			handlers.PushExpense_Tracker(&expense_tracker_info)
-		}
+		manage_previous_expenses_amount(&expense, userId, expenseCreatedInfo.InsertedID.(primitive.ObjectID))
 		c.JSON(http.StatusOK, expense)
 	}
 }
-
-// this function is used to check the involved expenses between the users
-// by using their id's and iterate
-func checkInvolvedExpensesBetweenPeers() {
-
-}
-
 func splitExpense(expense *Expenses, amount float64, userId string) error {
 	switch expense.Split.SplitType {
 	case "YOU_PAID_TOTAL_SPLIT_TO_PEERS":
@@ -130,7 +108,7 @@ func splitExpense(expense *Expenses, amount float64, userId string) error {
 			peer.Amount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 			expense.Split.InvolvedPeers[i] = peer
 			expense.Split.OwesTo = userId
-			expense.Split.OwesAmount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
+			expense.OwesAmount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 		}
 	case "YOU_OWED_FULL_AMOUNT_TO_PEER":
 		splitAmount := amount
@@ -139,7 +117,7 @@ func splitExpense(expense *Expenses, amount float64, userId string) error {
 			peer.PeerID = userId
 			peer.Amount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 			expense.Split.InvolvedPeers[i] = peer
-			expense.Split.OwesAmount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
+			expense.OwesAmount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 		}
 	case "PEER_OWED_FULL_AMOUNT_TO_YOU":
 		splitAmount := amount
@@ -147,11 +125,11 @@ func splitExpense(expense *Expenses, amount float64, userId string) error {
 			expense.Split.OwesTo = userId
 			peer.Amount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 			expense.Split.InvolvedPeers[i] = peer
-			expense.Split.OwesAmount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
+			expense.OwesAmount = strconv.FormatFloat(splitAmount, 'f', -1, 64)
 		}
 
 	default:
-		return errors.New("Invalid split type")
+		return errors.New("INVALID_SPLIT_TYPE")
 	}
 	return nil
 }
@@ -160,7 +138,6 @@ func splitExpenseWithGroup(expense *Expenses, userId string, paidBy string) {
 	splitAmount := expense.Amount / float64(len(expense.Split.InvolvedPeers)+1)
 	var owesAmount float64
 
-	// Add the paid user to the InvolvedPeers slice
 	paidUser := Peer{
 		PeerID: paidBy,
 		Amount: strconv.FormatFloat(splitAmount, 'f', -1, 64),
@@ -176,7 +153,7 @@ func splitExpenseWithGroup(expense *Expenses, userId string, paidBy string) {
 	}
 
 	expense.Split.OwesTo = paidBy
-	expense.Split.OwesAmount = strconv.FormatFloat(owesAmount, 'f', -1, 64)
+	expense.OwesAmount = strconv.FormatFloat(owesAmount, 'f', -1, 64)
 
 	for i, peer := range expense.Split.InvolvedPeers {
 		if peer.PeerID == paidBy {
@@ -189,4 +166,69 @@ func splitExpenseWithGroup(expense *Expenses, userId string, paidBy string) {
 		Amount: strconv.FormatFloat(splitAmount, 'f', -1, 64),
 	}
 	expense.Split.InvolvedPeers = append(expense.Split.InvolvedPeers, currentUser)
+}
+
+func manage_previous_expenses_amount(expense *Expenses, userId string, expenseId primitive.ObjectID) {
+	currentUserExpenses := GetExpensesCreatedByUser(userId)
+	isExpenseAmountModified := false
+	if currentUserExpenses != nil {
+		for _, peer := range expense.Split.InvolvedPeers {
+			if peer.Amount != "" {
+				amount, err := decimal.NewFromString(peer.Amount)
+				if err != nil {
+					return
+				}
+				if currentUserExpenses.Expense_Amount != "" {
+					expenseAmount, err := decimal.NewFromString(currentUserExpenses.Expense_Amount)
+					if err != nil {
+						return
+					}
+					if currentUserExpenses.Expense_Involved_By == peer.PeerID {
+						expenseAmount = expenseAmount.Add(amount)
+						expense.OwesAmount = expenseAmount.String()
+						isExpenseAmountModified = true
+					} else {
+						expenseAmount = expenseAmount.Sub(amount)
+						expense.OwesAmount = expenseAmount.String()
+						isExpenseAmountModified = true
+					}
+					currentUserExpenses.Expense_Amount = expenseAmount.String()
+				} else {
+					currentUserExpenses.Expense_Amount = peer.Amount
+					isExpenseAmountModified = false
+				}
+			}
+		}
+	}
+	if isExpenseAmountModified {
+		for _, peer := range expense.Split.InvolvedPeers {
+			fmt.Println("peer", peer.PeerID)
+			expense_tracker_info := expenses_tracker.ExpenseTracker_Info{
+				Expense_Created_By:  userId,
+				Expense_Title:       expense.Title,
+				Expense_Description: expense.Description,
+				Expense_Amount:      peer.Amount,
+				Expense_Activity:    `Expense is modifed with the amount change by the previous no settled expenses`,
+				Expense_Involved_By: peer.PeerID,
+				Type:                "EXPENSE_AMOUNT_MODIFIED",
+				ExpenseId:           expenseId,
+			}
+			handlers.PushExpense_Tracker(&expense_tracker_info)
+		}
+	} else {
+		for _, peer := range expense.Split.InvolvedPeers {
+			fmt.Println("peer", peer.PeerID)
+			expense_tracker_info := expenses_tracker.ExpenseTracker_Info{
+				Expense_Created_By:  userId,
+				Expense_Title:       expense.Title,
+				Expense_Description: expense.Description,
+				Expense_Amount:      peer.Amount,
+				Expense_Activity:    fmt.Sprintf(`Expense is created by %s`, userId),
+				Expense_Involved_By: peer.PeerID,
+				Type:                "CREATED",
+				ExpenseId:           expenseId,
+			}
+			handlers.PushExpense_Tracker(&expense_tracker_info)
+		}
+	}
 }

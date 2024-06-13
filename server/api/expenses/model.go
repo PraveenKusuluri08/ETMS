@@ -19,6 +19,7 @@ type Expenses struct {
 	Split              *Split  `json:"group_expense_split,omitempty" bson:"group_expense_split"`
 	SplitNeedToClearBy string  `json:"split_need_to_clear_by,omitempty" bson:"split_need_to_clear_by"`
 	CreatedAt          string  `json:"created_at,omitempty" bson:"created_at"`
+	OwesAmount         string  `json:"owes_amount,omitempty" bson:"owes_amount"`
 	PaidBy             string  `json:"paid_by,omitempty" bson:"paid_by"`
 }
 
@@ -27,7 +28,7 @@ type Split struct {
 	InvolvedPeers []Peer `json:"involved_peers,omitempty" bson:"involved_peers"`
 	SplitType     string `json:"split_type,omitempty" bson:"split_type" enum:"YOU_PAID_TOTAL_SPLIT_TO_PEERS, YOU_OWED_FULL_AMOUNT_TO_PEER, PEER_OWED_FULL_AMOUNT_TO_YOU"`
 	OwesTo        string `json:"owes_to,omitempty" bson:"owes_to"`
-	OwesAmount    string `json:"owes_amount,omitempty" bson:"owes_amount"`
+	string        `json:"owes_amount,omitempty" bson:"owes_amount"`
 }
 
 type Peer struct {
