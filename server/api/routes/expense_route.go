@@ -9,4 +9,5 @@ import (
 func ExpenseRouter(router *gin.RouterGroup) {
 	router.Use(middlewares.AuthMiddleware())
 	router.POST("/create", expenses.CreateExpense())
+
 }

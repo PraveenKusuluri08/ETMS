@@ -29,4 +29,5 @@ type ExpenseTracker_Info struct {
 	Expense_Involved_By string             `json:"expenseInvolvedBy,omitempty" bson:"expense_involved_by"`
 	Type                string             `json:"type,omitempty" bson:"type"`
 	ExpenseId           primitive.ObjectID `json:"expenseId,omitempty" bson:"expenseId"`
+	AmountPaidBy        string             `json:"amountPaidBy,omitempty" bson:"amountPaidBy"`
 }

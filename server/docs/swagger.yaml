@@ -59,6 +59,61 @@ definitions:
       message:
         type: string
     type: object
+  expenses.Expenses:
+    properties:
+      amount:
+        type: number
+      category:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: string
+      description:
+        type: string
+      group_expense_split:
+        $ref: '#/definitions/expenses.Split'
+      is_group_expense:
+        type: boolean
+      is_personal_expense:
+        type: boolean
+      owes_amount:
+        type: string
+      paid_by:
+        type: string
+      split_need_to_clear_by:
+        type: string
+      title:
+        type: string
+    required:
+    - amount
+    - category
+    - created_by
+    - description
+    - title
+    type: object
+  expenses.Peer:
+    properties:
+      amount:
+        type: string
+      peer_id:
+        type: string
+    type: object
+  expenses.Split:
+    properties:
+      group_id:
+        type: string
+      involved_peers:
+        items:
+          $ref: '#/definitions/expenses.Peer'
+        type: array
+      owes_amount:
+        type: string
+      owes_to:
+        type: string
+      split_type:
+        type: string
+    type: object
   groups.AcceptInvitationStruct:
     properties:
       email:
@@ -146,6 +201,43 @@ info:
   title: ETMS API
   version: "1.0"
 paths:
+  /api/v1/expenses/create:
+    post:
+      consumes:
+      - application/json
+      description: Create a new expense based on the user's amount and the preferences
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Expenses
+        in: body
+        name: expense
+        required: true
+        schema:
+          $ref: '#/definitions/expenses.Expenses'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/endpoints.CreatedResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/endpoints.BadRequestResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/endpoints.InternalServerResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Create new expense
+      tags:
+      - Expenses
   /api/v1/groups/accept_invitation:
     post:
       consumes:

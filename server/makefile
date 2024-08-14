@@ -15,8 +15,6 @@ tidy:
 
 build:
 	go build -o etms-server main.go
-
-
 run:
 	go run main.go
 

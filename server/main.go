@@ -47,6 +47,7 @@ func main() {
 	}
 
 	router.GET("/api/v1/test", testEndpoint)
+
 	wg.Add(1)
 
 	routes.SetUp(router)

@@ -18,6 +18,64 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/expenses/create": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Create a new expense based on the user's amount and the preferences",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Expenses"
+                ],
+                "summary": "Create new expense",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Expenses",
+                        "name": "expense",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/expenses.Expenses"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/endpoints.CreatedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/endpoints.BadRequestResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/endpoints.InternalServerResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/groups/accept_invitation": {
             "post": {
                 "security": [
@@ -563,6 +621,88 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "expenses.Expenses": {
+            "type": "object",
+            "required": [
+                "amount",
+                "category",
+                "created_by",
+                "description",
+                "title"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "group_expense_split": {
+                    "$ref": "#/definitions/expenses.Split"
+                },
+                "is_group_expense": {
+                    "type": "boolean"
+                },
+                "is_personal_expense": {
+                    "type": "boolean"
+                },
+                "owes_amount": {
+                    "type": "string"
+                },
+                "paid_by": {
+                    "type": "string"
+                },
+                "split_need_to_clear_by": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "expenses.Peer": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "string"
+                },
+                "peer_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "expenses.Split": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string"
+                },
+                "involved_peers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/expenses.Peer"
+                    }
+                },
+                "owes_amount": {
+                    "type": "string"
+                },
+                "owes_to": {
+                    "type": "string"
+                },
+                "split_type": {
                     "type": "string"
                 }
             }

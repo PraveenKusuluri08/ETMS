@@ -20,9 +20,9 @@ func DBConnect() *mongo.Client {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
 	defer cancel()
-	// mongo_uri:=os.Getenv("MONGODB_URI")
+	// mongo_uri := os.Getenv("MONGODB_URI")
 
-	client, err = mongo.Connect(ctx, options.Client().ApplyURI("mongodb+srv://praveen_admin:Praveen8919296298@cluster0.7fpbz.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0/etms"))
+	client, err = mongo.Connect(ctx, options.Client().ApplyURI("mongodb+srv://praveen_admin:Praveen8919296298@cluster1.uyl3sto.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1"))
 
 	if err != nil {
 		log.Fatal(err)
