@@ -17,33 +17,29 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// TODO: First check the model is properly initialized like api got the response clearly
-// TODO: Simple group checks like check if the group exists or not
-// TODO: Check if the user is exists or not in the group like involved peers
-// TODO: Check if the expenses with the same data is aldeary exists in the database
-// TODO: Perform the math opearations like splitting the expenses based on the user requirements
-// TODO: If user wants to add the notes while creating the expenses then use the create note endpoint
-// TODO: All this must be into the expense tracker which is basically like the logger for the expenses whhich are creating
-// TODO: Store the expense tracker or the logger for the expense based on the expenses ID
-// TODO: Check if the expense is perosonal or not if it is perosonal then store the expenses based on the expense for the user it self like no group involed and it purely personal and make the calculations accordingly
-
-//TODO: While creating an expenses i need to check the previous involved expenses between the two users or the group
-
-//TODO: Like check previous expenses with the userId's in the expenses and based on the amount involved in the expense between the two users then make the new expense with the amount and update the expense tracker
-
 var exepnsesCollection = bootstrap.GetCollection(bootstrap.ClientDB, "expenses")
-var expensesTracker = bootstrap.GetCollection(bootstrap.ClientDB, "expenses_tracker")
 
 func CreateExpense() gin.HandlerFunc {
 	expensesService := &ExpensesService{}
 	return expensesService.CreateExpense()
 }
 
+// @Summary		Create new expense
+// @Description	Create a new expense based on the user's amount and the preferences
+// @Accept			json
+// @Produce		json
+// @Security		ApiKeyAuth
+// @Param			Authorization	header		string		true	"Bearer token"
+// @Param			expense			body		Expenses	true	"Expenses"
+// @Success		200				{object}	endpoints.CreatedResponse
+// @Failure		400				{object}	endpoints.BadRequestResponse
+// @Failure		500				{object}	endpoints.InternalServerResponse
+// @Router			/api/v1/expenses/create [post]
+// @Tags			Expenses
 func (e *ExpensesService) CreateExpense() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
 		userId := c.GetString("uid")
-		// var wg sync.WaitGroup
 
 		defer cancel()
 		var expense Expenses
@@ -208,7 +204,7 @@ func manage_previous_expenses_amount(expense *Expenses, userId string, expenseId
 				Expense_Title:       expense.Title,
 				Expense_Description: expense.Description,
 				Expense_Amount:      peer.Amount,
-				Expense_Activity:    `Expense is modifed with the amount change by the previous no settled expenses`,
+				Expense_Activity:    `Expense is modifed with the amount change by the previous non settled expenses`,
 				Expense_Involved_By: peer.PeerID,
 				Type:                "EXPENSE_AMOUNT_MODIFIED",
 				ExpenseId:           expenseId,
@@ -218,17 +214,41 @@ func manage_previous_expenses_amount(expense *Expenses, userId string, expenseId
 	} else {
 		for _, peer := range expense.Split.InvolvedPeers {
 			fmt.Println("peer", peer.PeerID)
-			expense_tracker_info := expenses_tracker.ExpenseTracker_Info{
-				Expense_Created_By:  userId,
-				Expense_Title:       expense.Title,
-				Expense_Description: expense.Description,
-				Expense_Amount:      peer.Amount,
-				Expense_Activity:    fmt.Sprintf(`Expense is created by %s`, userId),
-				Expense_Involved_By: peer.PeerID,
-				Type:                "CREATED",
-				ExpenseId:           expenseId,
+			if peer.PeerID != userId {
+				expense_tracker_info := expenses_tracker.ExpenseTracker_Info{
+					Expense_Created_By:  userId,
+					Expense_Title:       expense.Title,
+					Expense_Description: expense.Description,
+					Expense_Amount:      peer.Amount,
+					Expense_Activity:    fmt.Sprintf(`Expense is created by %s`, userId),
+					Expense_Involved_By: peer.PeerID,
+					Type:                expense.Split.SplitType,
+					ExpenseId:           expenseId,
+					AmountPaidBy:        expense.PaidBy,
+				}
+				handlers.PushExpense_Tracker(&expense_tracker_info)
 			}
-			handlers.PushExpense_Tracker(&expense_tracker_info)
 		}
 	}
 }
+
+// TODO:Get Current user expenses
+// TODO: This function is used to get the expenses for the current user which is created by that
+// user or involved by the current user with any other expenses
+// settled expenses non settled expenses bascically all the expenses belongs to the current user
+// TODO: Based on the user login needs to fetch the expenses for the user and make sure that need to fetch the expenses which is createdBy this user and fetch all the expenses
+// like this user involved other users involved in this user
+
+func GetCurrentUserExpenses() gin.HandlerFunc {
+	expensesService := &ExpensesService{}
+	return expensesService.GetCurrentUserExpenses()
+}
+
+func (e *ExpensesService) GetCurrentUserExpenses() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+	}
+}
+
+// TODO:Get Group Expenses based on the users
+// TODO: Get the amount based on the person in the group and calculate the amount for all the expenses for all the users

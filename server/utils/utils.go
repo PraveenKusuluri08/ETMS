@@ -15,6 +15,7 @@ import (
 type SendEmailTypes struct {
 	To        []string `json:"to"`
 	GroupName string   `json:"groupname"`
+	Inviter   string   `json:"inviter"`
 }
 
 var MAX_NUMBERS = 4
@@ -41,6 +42,7 @@ func generateOTPCode() int {
 }
 
 func SendEmail(info *SendEmailTypes) string {
+	fmt.Println("Sending email...", info.To)
 	from := os.Getenv("SMTP_USER")
 	password := os.Getenv("SMTP_PASSWORD")
 
@@ -59,15 +61,17 @@ func SendEmail(info *SendEmailTypes) string {
 
 	var body bytes.Buffer
 	mimeHeaders := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-	body.Write([]byte(fmt.Sprintf("Subject: This is a test subject \n%s\n\n", mimeHeaders)))
+	body.Write([]byte(fmt.Sprintf("Subject: OTP to accept invitation \n%s\n\n", mimeHeaders)))
 	// Execute the template and write its output to the buffer
-	messageStr := fmt.Sprintf("This OTP use this to accept the invitation $s\n", string(generateOTPCode()))
+	messageStr := fmt.Sprintf("This OTP use this to accept the invitation %d\n", generateOTPCode())
 	err = t.Execute(&body, struct {
 		Information string
 		Message     string
+		Inviter     string
 	}{
 		Information: "OTP to accept the invitation",
 		Message:     messageStr,
+		Inviter:     info.Inviter,
 	})
 	if err != nil {
 		fmt.Println("Error executing template:", err)
@@ -80,7 +84,6 @@ func SendEmail(info *SendEmailTypes) string {
 		fmt.Println("Error sending email:", err)
 		return "email_send_error"
 	}
-
 	fmt.Println("Email sent successfully!")
 	return "email_sent"
 }

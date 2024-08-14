@@ -52,18 +52,18 @@ func RemoveGroupMember() gin.HandlerFunc {
 	return groupService.RemoveGroupMember()
 }
 
-//	@Summary		Create a new group
-//	@Description	Create a new group with the provided group name to manage the expenses between the tenets
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			Authorization	header		string	true	"Bearer token"
-//	@Param			group			body		Group	true	"Group"
-//	@Success		200				{object}	endpoints.CreatedResponse
-//	@Failure		400				{object}	endpoints.BadRequestResponse
-//	@Failure		500				{object}	endpoints.InternalServerResponse
-//	@Router			/api/v1/groups/creategroup [post]
-//	@Tags			Groups
+// @Summary		Create a new group
+// @Description	Create a new group with the provided group name to manage the expenses between the tenets
+// @Accept			json
+// @Produce		json
+// @Security		ApiKeyAuth
+// @Param			Authorization	header		string	true	"Bearer token"
+// @Param			group			body		Group	true	"Group"
+// @Success		200				{object}	endpoints.CreatedResponse
+// @Failure		400				{object}	endpoints.BadRequestResponse
+// @Failure		500				{object}	endpoints.InternalServerResponse
+// @Router			/api/v1/groups/creategroup [post]
+// @Tags			Groups
 func (g *GroupService) CreateGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
@@ -113,7 +113,7 @@ func (g *GroupService) CreateGroup() gin.HandlerFunc {
 		if err != nil {
 			statusInternalServerErrorResponse := endpoints.InternalServerResponse{
 				Msg: endpoints.ErrorMessage{
-					Name: fmt.Sprintf("Failed to insert group"),
+					Name: "Failed to insert group",
 				},
 				Status: "500",
 				Error:  err.Error(),
@@ -131,18 +131,18 @@ func (g *GroupService) CreateGroup() gin.HandlerFunc {
 	}
 }
 
-//	@Summary		Update the group name
-//	@Description	Update group name with the new group name
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			Authorization	header		string				true	"Bearer token"
-//	@Param			updateGroup		body		UpdateGroupStruct	true	"Update Group"
-//	@Success		200				{object}	endpoints.SuccessResponse
-//	@Failure		400				{object}	endpoints.BadRequestResponse
-//	@Failure		500				{object}	endpoints.InternalServerResponse
-//	@Router			/api/v1/groups/update_group_name [put]
-//	@Tags			Groups
+// @Summary		Update the group name
+// @Description	Update group name with the new group name
+// @Accept			json
+// @Produce		json
+// @Security		ApiKeyAuth
+// @Param			Authorization	header		string				true	"Bearer token"
+// @Param			updateGroup		body		UpdateGroupStruct	true	"Update Group"
+// @Success		200				{object}	endpoints.SuccessResponse
+// @Failure		400				{object}	endpoints.BadRequestResponse
+// @Failure		500				{object}	endpoints.InternalServerResponse
+// @Router			/api/v1/groups/update_group_name [put]
+// @Tags			Groups
 func (group *GroupService) UpdateGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
@@ -207,24 +207,49 @@ func (group *GroupService) UpdateGroup() gin.HandlerFunc {
 	}
 }
 
-//	@Summary		Update the group name
-//	@Description	Update group name with the new group name
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			Authorization	header		string		true	"Bearer token"
+// @Summary		Update the group name
+// @Description	Update group name with the new group name
+// @Accept			json
+// @Produce		json
+// @Security		ApiKeyAuth
+// @Param			Authorization	header		string		true	"Bearer token"
 //
-//	@Param			invite			body		Invitation	true	"Invite User"
-//	@Success		200				{object}	endpoints.InviteGroupMembersResponse
-//	@Failure		400				{object}	endpoints.BadRequestResponse
-//	@Failure		500				{object}	endpoints.InternalServerResponse
-//	@Router			/api/v1/groups/invite [POST]
+// @Param			invite			body		Invitation	true	"Invite User"
+// @Success		200				{object}	endpoints.InviteGroupMembersResponse
+// @Failure		400				{object}	endpoints.BadRequestResponse
+// @Failure		500				{object}	endpoints.InternalServerResponse
+// @Router			/api/v1/groups/invite [POST]
 //
-//	@Tags			Groups
+// @Tags			Groups
 func (g *GroupService) InviteGroupMembers() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+		//get the inviter info and send the inviter info to users whose mail is exists in the users array
+		inviter, exists := c.Get("uid")
+		if !exists {
+			badRequestResponse := endpoints.BadRequestResponse{
+				Msg: endpoints.ErrorMessage{
+					Name: "Please provide fields properly",
+				},
+				Status: "400",
+				Error:  "inviter_not_exists",
+			}
+			c.JSON(http.StatusBadRequest, badRequestResponse)
+		}
+		u, er := GetInviter(inviter.(string))
+		if er != nil {
+			internalServerResponse := endpoints.InternalServerResponse{
+				Msg: endpoints.ErrorMessage{
+					Name: "Failed to get inviter info",
+				},
+				Status: "500",
+				Error:  er.Error(),
+			}
+			c.JSON(http.StatusInternalServerError, internalServerResponse)
+			return
+		}
+		inviterUsername := u.Username
 
 		var invitation Invitation
 		if err := c.BindJSON(&invitation); err != nil {
@@ -239,7 +264,7 @@ func (g *GroupService) InviteGroupMembers() gin.HandlerFunc {
 
 			return
 		}
-		fmt.Println(invitation)
+		fmt.Println(invitation.GroupName)
 
 		//check if the group is exists or not in the database
 		filter_group := bson.M{"group_name": invitation.GroupName}
@@ -295,6 +320,10 @@ func (g *GroupService) InviteGroupMembers() gin.HandlerFunc {
 				users_not_exists = append(users_not_exists, u)
 			}
 		}
+		if len(users_exists) == 0 {
+			users_exists = []string{}
+		}
+
 		filter := bson.M{
 			"group_name": invitation.GroupName,
 			"users.email": bson.M{
@@ -311,7 +340,9 @@ func (g *GroupService) InviteGroupMembers() gin.HandlerFunc {
 
 		email := &utils.SendEmailTypes{
 			To:        invitation.Users,
-			GroupName: invitation.GroupName}
+			GroupName: invitation.GroupName,
+			Inviter:   inviterUsername,
+		}
 
 		utils.SendEmail(email)
 
@@ -319,29 +350,20 @@ func (g *GroupService) InviteGroupMembers() gin.HandlerFunc {
 	}
 }
 
-func contains(slice []interface{}, value string) bool {
-	for _, item := range slice {
-		if item.(string) == value {
-			return true
-		}
-	}
-	return false
-}
-
-//	@Summary		Accept invitation to group member
-//	@Description	Accept invitation to group member with the provided group name and email
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			Authorization		header		string					true	"Bearer token"
+// @Summary		Accept invitation to group member
+// @Description	Accept invitation to group member with the provided group name and email
+// @Accept			json
+// @Produce		json
+// @Security		ApiKeyAuth
+// @Param			Authorization		header		string					true	"Bearer token"
 //
-//	@Param			acceptInvitation	body		AcceptInvitationStruct	true	"Accept Inviation"
-//	@Success		200					{object}	endpoints.AcceptInvitationResponse
-//	@Failure		400					{object}	endpoints.BadRequestResponse
-//	@Failure		500					{object}	endpoints.InternalServerResponse
-//	@Router			/api/v1/groups/accept_invitation [POST]
+// @Param			acceptInvitation	body		AcceptInvitationStruct	true	"Accept Inviation"
+// @Success		200					{object}	endpoints.AcceptInvitationResponse
+// @Failure		400					{object}	endpoints.BadRequestResponse
+// @Failure		500					{object}	endpoints.InternalServerResponse
+// @Router			/api/v1/groups/accept_invitation [POST]
 //
-//	@Tags			Groups
+// @Tags			Groups
 func (g *GroupService) AcceptInvitation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
@@ -452,17 +474,17 @@ func (g *GroupService) AcceptInvitation() gin.HandlerFunc {
 	}
 }
 
-//	@Summary		Get Users Present in the group
-//	@Description	get all the users present in the group by the group name
-//	@Tags			Groups
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string	true	"Bearer token"
-//	@Param			group_name		query		string	true	"Group name"
-//	@Success		200				{object}	endpoints.GetUsersResponse
-//	@Failure		400				{object}	endpoints.BadRequestResponse
-//	@Failure		500				{object}	endpoints.InternalServerResponse
-//	@Router			/api/v1/groups/get_users [post]
+// @Summary		Get Users Present in the group
+// @Description	get all the users present in the group by the group name
+// @Tags			Groups
+// @Accept			json
+// @Produce		json
+// @Param			Authorization	header		string	true	"Bearer token"
+// @Param			group_name		query		string	true	"Group name"
+// @Success		200				{object}	endpoints.GetUsersResponse
+// @Failure		400				{object}	endpoints.BadRequestResponse
+// @Failure		500				{object}	endpoints.InternalServerResponse
+// @Router			/api/v1/groups/get_users [post]
 func (g *GroupService) DisplayUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
@@ -498,17 +520,17 @@ func (g *GroupService) DisplayUsers() gin.HandlerFunc {
 	}
 }
 
-//	@Summary		Remove member from the group
-//	@Description	Remove member from the group based on the email
-//	@Tags			Groups
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string								true	"Bearer token"
-//	@Param			removeMember	body		AcceptInvitationStruct				true	"Remove Group Member"
-//	@Success		200				{object}	Group								"Group updated successfully"
-//	@Failure		400				{object}	endpoints.BadRequestResponse		"Invalid request"
-//	@Failure		500				{object}	endpoints.InternalServerResponse	"Internal server error"
-//	@Router			/api/v1/groups/remove_group_member [put]
+// @Summary		Remove member from the group
+// @Description	Remove member from the group based on the email
+// @Tags			Groups
+// @Accept			json
+// @Produce		json
+// @Param			Authorization	header		string								true	"Bearer token"
+// @Param			removeMember	body		AcceptInvitationStruct				true	"Remove Group Member"
+// @Success		200				{object}	Group								"Group updated successfully"
+// @Failure		400				{object}	endpoints.BadRequestResponse		"Invalid request"
+// @Failure		500				{object}	endpoints.InternalServerResponse	"Internal server error"
+// @Router			/api/v1/groups/remove_group_member [put]
 func (g *GroupService) RemoveGroupMember() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)

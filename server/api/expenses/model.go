@@ -45,6 +45,7 @@ const (
 
 type ExpensesInterface interface {
 	CreateExpense() gin.HandlerFunc
+	GetCurrentUserExpenses() gin.HandlerFunc
 }
 
 type ExpensesService struct{}
