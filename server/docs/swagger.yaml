@@ -238,6 +238,28 @@ paths:
       summary: Create new expense
       tags:
       - Expenses
+  /api/v1/expenses/getuserexpenses:
+    get:
+      description: This helps to get the expenses created by the current user logged
+        in and get the expenses involved by the current user in any other groups
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/endpoints.SuccessResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: This helps to get the expenses of the current user logged in
+      tags:
+      - Expenses
   /api/v1/groups/accept_invitation:
     post:
       consumes:

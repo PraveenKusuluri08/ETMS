@@ -14,6 +14,7 @@ import (
 	endpoints "github.com/Praveenkusuluri08/types"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -40,7 +41,7 @@ func (e *ExpensesService) CreateExpense() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
 		userId := c.GetString("uid")
-
+		fmt.Println(userId)
 		defer cancel()
 		var expense Expenses
 		if err := c.BindJSON(&expense); err != nil {
@@ -68,10 +69,14 @@ func (e *ExpensesService) CreateExpense() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, badRequestResponse)
 			return
 		}
-		if expense.IsGroup && len(expense.Split.InvolvedPeers)+1 == 2 {
+
+		if !expense.IsGroup {
+			expense.PaidBy = userId
+			expense.OwesAmount = ""
+			expense.Split = nil
+		} else if expense.IsGroup && len(expense.Split.InvolvedPeers)+1 == 2 {
 			splitExpense(&expense, expense.Amount, userId)
-		}
-		if expense.IsGroup && len(expense.Split.InvolvedPeers) > 2 && expense.Split.SplitType == "GROUP_EXPENSE" {
+		} else if expense.IsGroup && len(expense.Split.InvolvedPeers) > 2 && expense.Split.SplitType == "GROUP_EXPENSE" {
 			splitExpenseWithGroup(&expense, userId, expense.PaidBy)
 		}
 
@@ -92,10 +97,13 @@ func (e *ExpensesService) CreateExpense() gin.HandlerFunc {
 
 			return
 		}
-		manage_previous_expenses_amount(&expense, userId, expenseCreatedInfo.InsertedID.(primitive.ObjectID))
+		if expense.IsGroup {
+			manage_previous_expenses_amount(&expense, userId, expenseCreatedInfo.InsertedID.(primitive.ObjectID))
+		}
 		c.JSON(http.StatusOK, expense)
 	}
 }
+
 func splitExpense(expense *Expenses, amount float64, userId string) error {
 	switch expense.Split.SplitType {
 	case "YOU_PAID_TOTAL_SPLIT_TO_PEERS":
@@ -239,6 +247,14 @@ func manage_previous_expenses_amount(expense *Expenses, userId string, expenseId
 // TODO: Based on the user login needs to fetch the expenses for the user and make sure that need to fetch the expenses which is createdBy this user and fetch all the expenses
 // like this user involved other users involved in this user
 
+// @Summary This helps to get the expenses of the current user logged in
+// @Description This helps to get the expenses created by the current user logged in and get the expenses involved by the current user in any other groups
+// @Produce json
+// @Security ApiKeyAuth
+// @Param			Authorization	header		string				true	"Bearer token"
+// @Success		200				{object}	endpoints.SuccessResponse
+// @Router			/api/v1/expenses/getuserexpenses [get]
+// @Tags			Expenses
 func GetCurrentUserExpenses() gin.HandlerFunc {
 	expensesService := &ExpensesService{}
 	return expensesService.GetCurrentUserExpenses()
@@ -246,9 +262,103 @@ func GetCurrentUserExpenses() gin.HandlerFunc {
 
 func (e *ExpensesService) GetCurrentUserExpenses() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Set a timeout for the context
+		var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 
+		// Get the current user ID from the context
+		currentUserId := c.GetString("uid")
+		if currentUserId == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "User ID not found"})
+			return
+		}
+
+		// Get the expenses created by the user
+		currentUserExpenses := GetUserExpenses(currentUserId)
+		if currentUserExpenses == nil {
+			c.JSON(http.StatusOK, gin.H{"error": "No expenses found for the current user"})
+			return
+		}
+
+		// Define the aggregation pipeline
+		pipeline := []bson.M{
+			{
+				"$match": bson.M{
+					"group_expense_split.involved_peers": bson.M{
+						"$elemMatch": bson.M{"peer_id": currentUserId},
+					},
+				},
+			},
+			{
+				"$group": bson.M{
+					"_id":          "$group_expense_split.group_id",
+					"group_title":  bson.M{"$first": "$group_expense_split.group_title"},
+					"group_amount": bson.M{"$sum": "$group_expense_split.amount"},
+					"involved_peers": bson.M{
+						"$push": "$group_expense_split.involved_peers",
+					},
+					"your_amount": bson.M{
+						"$sum": bson.M{
+							"$reduce": bson.M{
+								"input":        "$group_expense_split.involved_peers",
+								"initialValue": 0,
+								"in": bson.M{
+									"$cond": bson.M{
+										"if":   bson.M{"$eq": []interface{}{"$$this.peer_id", currentUserId}},
+										"then": "$$this.amount",
+										"else": 0,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		// Execute the aggregation pipeline
+		cursor, err := expensesCollection.Aggregate(ctx, pipeline)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to execute aggregation",
+				"details": err.Error(),
+			})
+			return
+		}
+		defer cursor.Close(ctx)
+
+		// Prepare a slice to store the involved expenses
+		var involvedExpenses []bson.M
+
+		// Iterate through the results from the cursor
+		for cursor.Next(ctx) {
+			var result bson.M
+			if err := cursor.Decode(&result); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error":   "Failed to decode aggregation result",
+					"details": err.Error(),
+				})
+				return
+			}
+			involvedExpenses = append(involvedExpenses, result)
+		}
+
+		// Check if there are any errors during cursor iteration
+		if err := cursor.Err(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Error occurred while iterating cursor",
+				"details": err.Error(),
+			})
+			return
+		}
+
+		// Combine current user expenses and involved expenses
+		combineUserExpensesAndInvolvedExpenses := gin.H{
+			"currentUserExpenses": currentUserExpenses,
+			"involvedExpenses":    involvedExpenses,
+		}
+
+		// Return the combined result
+		c.JSON(http.StatusOK, combineUserExpensesAndInvolvedExpenses)
 	}
 }
-
-// TODO:Get Group Expenses based on the users
-// TODO: Get the amount based on the person in the group and calculate the amount for all the expenses for all the users
