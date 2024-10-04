@@ -33,6 +33,17 @@ func IsExpenseWithSameTitleExists(userId string, expense_title string) bool {
 	return len(userExpense) > 0
 }
 
+func GetUserExpenses(userId string) *Expenses {
+	var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	expenses := &Expenses{}
+	if err := expensesCollection.FindOne(ctx, bson.M{"created_by": userId}).Decode(&expenses); err != nil {
+		log.Println(err)
+		return nil
+	}
+	return expenses
+}
+
 func GetExpensesCreatedByUser(userId string) *expenses_tracker.ExpenseTracker_Info {
 	var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

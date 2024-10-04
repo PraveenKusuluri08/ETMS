@@ -76,6 +76,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/expenses/getuserexpenses": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "This helps to get the expenses created by the current user logged in and get the expenses involved by the current user in any other groups",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Expenses"
+                ],
+                "summary": "This helps to get the expenses of the current user logged in",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/endpoints.SuccessResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/groups/accept_invitation": {
             "post": {
                 "security": [
